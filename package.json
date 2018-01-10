@@ -1,0 +1,32 @@
+{
+  "devDependencies": {
+    "babel-core": "^6.25.0",
+    "babel-plugin-inline-json-import": "^0.2.1",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-stage-0": "^6.24.1",
+    "gulp": "^3.9.1",
+    "gulp-babel": "^7.0.0",
+    "gulp-nodemon": "^2.2.1"
+  },
+  "name": "nomic-helper",
+  "description": "A Discord bot designed to help with various parts of hosting a Nomic server.",
+  "version": "1.0.0",
+  "main": "gulpfile.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jetmate/nomic-helper.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jetmate/nomic-helper/issues"
+  },
+  "homepage": "https://github.com/Jetmate/nomic-helper#readme",
+  "dependencies": {
+    "discord.js": "^11.2.1"
+  }
+}
