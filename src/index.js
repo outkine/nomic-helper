@@ -1,14 +1,16 @@
 import 'babel-polyfill'
 import discord from 'discord.js'
 import fs from 'fs'
-import path from 'path'
+import path, { normalize } from 'path'
 
 function loadJson (filePath) {
 	return JSON.parse(fs.readFileSync(path.resolve(__dirname, filePath), 'utf8'))
 }
 
 function writeJson (filePath, data) {
-	fs.writeFileSync(path.resolve(__dirname, filePath), JSON.stringify(data))
+	fs.writeFile(path.resolve(__dirname, filePath), JSON.stringify(data), 'utf8', err => {
+		console.log(err)
+	})
 }
 
 let CONFIG_PATH, DATA_PATH
@@ -54,20 +56,20 @@ function sendChannel (guild, name, message) {
 }
 
 function cleanChannel (guild, name) {
-	return findChannel(guild, name).bulkDelete(999, true)
+	findChannel(guild, name).bulkDelete(100, true)
 }
 
-function totalMembers (guild) {
-	return guild.memberCount - BOT_NUMBER
+function totalMembers () {
+	return proposalQueue.length
 }
 
-function membersNeeded (guild) {
-	return Math.round(totalMembers(guild) / 2)
+function membersNeeded () {
+	return Math.round(totalMembers() / 2)
 }
 
 function calculateProposalQueue (client) {
 	return client.guilds.find('name', GUILD).members
-		.filter(member => !member.bot)
+		.filter(member => !member.user.bot)
 		.sort((a, b) => {
 			return a.joinedTimestamp - b.joinedTimestamp
 		})
@@ -78,18 +80,18 @@ function currentTurnMember (guild) {
 	return guild.members.filterArray(member => memberRole(member, CURRENT_TURN_ROLE))[0]
 }
 
-const data = loadJson(DATA_PATH)
+// const data = loadJson(DATA_PATH)
 
-function setData (name, value) {
-	data[name] = value
-	writeJson(data)
-}
+// function setData (name, value) {
+// 	data[name] = value
+// 	writeJson(DATA_PATH, data)
+// }
 
 const client = new discord.Client()
-let proposal_queue
+let proposalQueue
 
 function updateProposalQueue () {
-	proposal_queue = calculateProposalQueue(client)
+	proposalQueue = calculateProposalQueue(client)
 }
 
 client.on('ready', async () => {
@@ -132,55 +134,52 @@ client.on('message', async message => {
 
 		let yesVotes = args[0] === YES ? 1 : 0
 		let noVotes = args[0] === NO ? 1 : 0
-		const memberCountHalf = Math.round(totalMembers(guild) / 2)
+		const memberCountHalf = membersNeeded()
 
-		let end = false
-		let difference
 		for (let member2 of guild.members.array()) {
 			if (member2.id !== member.id) {
 				if (memberRole(member2, YES)) yesVotes += 1
 				else if (memberRole(member2, NO)) noVotes += 1
-
-				if (yesVotes >= memberCountHalf || noVotes > memberCountHalf) {
-					if (yesVotes >= memberCountHalf) {
-						sendChannel(guild, VOTING_CHANNEL, 'The proposal has been passed!')
-						end = 'passed'
-						difference = yesVotes - noVotes
-					} else if (noVotes > memberCountHalf) {
-						sendChannel(guild, VOTING_CHANNEL, 'The proposal has been rejected!')
-						end = 'rejected'
-						difference = noVotes - yesVotes
-					}
-					break
-				}
-
 			}
 		}
 
-		if (end) {
-			for (let member2 of guild.members.array()) {
-				member2.removeRole(roles[NO])
-				member2.removeRole(roles[YES])
-			}
+		let end, difference
+		if (yesVotes >= memberCountHalf) {
+			sendChannel(guild, VOTING_CHANNEL, 'The proposal has been passed!')
+			end = 'passed'
+			difference = yesVotes - noVotes
+		} else if (noVotes > memberCountHalf) {
+			sendChannel(guild, VOTING_CHANNEL, 'The proposal has been rejected!')
+			end = 'rejected'
+			difference = noVotes - yesVotes
+		}
 
-			setData('cycleCount', data.cycleCount + 1)
+		console.log(1)
+		if (end) {
+			// for (let member2 of guild.members.array()) {
+			// 	member2.removeRole(roles[NO])
+			// 	member2.removeRole(roles[YES])
+			// }
+
 
 			const previousTurnMember = currentTurnMember(guild)
 
 			previousTurnMember.removeRole(roles[CURRENT_TURN_ROLE])
-			const previousTurnI = proposal_queue.indexOf(previousTurnMember.id)
+			const previousTurnI = proposalQueue.indexOf(previousTurnMember.id)
 
 			let nextTurnI
-			if (previousTurnI === proposal_queue.length) {
-				sendChannel(guild, ANNOUNCEMENT_CHANNEL, `Cycle #${data.cycleCount} has begun!`)
+			if (previousTurnI === proposalQueue.length - 1) {
+				// TODO: get this to work
+				// setData('cycleCount', data.cycleCount + 1)
+				// sendChannel(guild, ANNOUNCEMENT_CHANNEL, `Cycle #${data.cycleCount} has begun!`)
 				nextTurnI = 0
 			} else {
 				nextTurnI = previousTurnI + 1
 			}
-			const activeTurnMember = guild.members.find('id', proposal_queue[nextTurnI])
+			const activeTurnMember = guild.members.find('id', proposalQueue[nextTurnI])
 			activeTurnMember.addRole(roles[CURRENT_TURN_ROLE])
 
-			const messages = findChannel(guild, PROPOSAL_CHANNEL).messages.array()
+			const messages = findChannel(guild, PROPOSAL_CHANNEL).messages.array().slice(1)
 			sendChannel(guild, ARCHIVE_CHANNEL, `
 **Action: ${messages.shift()}**
 Sponsor: ${previousTurnMember.displayName}
@@ -190,7 +189,6 @@ ${messages.join('\n')}
 			`)
 			cleanChannel(guild, PROPOSAL_CHANNEL)
 			sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently ${activeTurnMember.displayName}'s turn.`)
-
 		} else {
 			member.addRole(roles[args[0]])
 			// channel.send(`You have voted ${args[0]}`)
@@ -208,16 +206,16 @@ ${messages.join('\n')}
 		member.removeRole(roles[YES])
 		// channel.send('You have withdrawn your vote')
 	}
-else if (command === 'vote-info') {
+	else if (command === 'vote-info') {
 		let yesVotes = 0
 		let noVotes = 0
 
-		for (let member of guild.members.array()) {
-			if (memberRole(member, YES)) yesVotes += 1
-			else if (memberRole(member, NO)) noVotes += 1
+		for (let member2 of guild.members.array()) {
+			if (memberRole(member2, YES)) yesVotes += 1
+			else if (memberRole(member2, NO)) noVotes += 1
 		}
 		channel.send(`Here:
-total members: **${totalMembers(guild)}**
+total members: **${totalMembers()}**
 members needed: **${membersNeeded(guild)}**
 total for: **${yesVotes}**
 total against: **${noVotes}**
@@ -230,15 +228,16 @@ total against: **${noVotes}**
 **vote-info**   - see the current vote statistics
 **unvote**   - cancel your vote
 
+**turn-info**   - see the current turns
+
 **ping**   - test my speed
 		`)
 	}
 
 	else if (command === 'turn-info') {
+// **Cycle: ${data.cycleCount}**
 		channel.send(`Here:
-**Cycle: ${data.cycleCount}**
-
-${proposal_queue
+${proposalQueue
 	.map(id => {
 			let name = guild.members.find('id', id).displayName
 			if (id === currentTurnMember(guild).id) {
@@ -251,6 +250,16 @@ ${proposal_queue
 		`)
 	}
 
+	else if (process.env.NODE_ENV !== 'production' && command === 'green') {
+		for (let member2 of guild.members.array()) {
+			member2.addRole(roles[YES])
+		}
+	}
+
+	else if (process.env.NODE_ENV !== 'production' && command === 'clear') {
+		channel.bulkDelete(parseInt(args[0]) + 1)
+	}
+
 	else {
 		channel.send('I did not understand that')
 	}
@@ -259,7 +268,7 @@ ${proposal_queue
 
 client.on('guildMemberAdd', async member => {
 	sendChannel(member.guild, INTRODUCTION_CHANNEL, `
-Welcome ${member.displayName}! Please introduce yourself in this channel. You have been placed in the proposal queue: your turn is ${'some number of'} proposals away.
+Welcome ${member.displayName}! Please introduce yourself in this channel. You have been placed in the proposal queue: your can view your place with \`${PRODUCTION_PREFIX}turn-info\`.
 	`)
 	updateProposalQueue()
 })
