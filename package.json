@@ -1,8 +1,6 @@
 {
   "devDependencies": {
     "babel-core": "^6.25.0",
-    "babel-plugin-inline-json-import": "^0.2.1",
-    "babel-polyfill": "^6.26.0",
     "babel-preset-env": "^1.6.1",
     "babel-preset-stage-0": "^6.24.1",
     "gulp": "^3.9.1",
@@ -27,6 +25,7 @@
   },
   "homepage": "https://github.com/Jetmate/nomic-helper#readme",
   "dependencies": {
+    "babel-polyfill": "^6.26.0",
     "discord.js": "^11.2.1"
   }
 }

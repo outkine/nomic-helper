@@ -1,10 +1,17 @@
 import 'babel-polyfill'
 import discord from 'discord.js'
-import config from 'config.json'
+import fs from 'fs'
+import path from 'path'
+
+let CONFIG_PATH
+if (process.env.NODE_ENV === 'production') {
+  CONFIG_PATH = './config.json'
+} else {
+  CONFIG_PATH = '../config.json'
+}
+const config = JSON.parse(fs.readFileSync(path.resolve(__dirname, CONFIG_PATH), 'utf8'))
 
 const client = new discord.Client()
-
-const votes = {}
 
 const YES = 'yes'
 const NO = 'no'
@@ -24,31 +31,40 @@ client.on('message', async message => {
   const args = message.content.slice(config.prefix.length).trim().split(/ +/g)
   const command = args.shift().toLowerCase()
   const { member, channel } = message
+  const roles = {
+    [YES]: role(member, YES),
+    [NO]: role(member, NO),
+  }
 
   if (command === 'ping') {
     const m = await channel.send('Ping?')
     m.edit(`Pong! Latency is ${m.createdTimestamp - message.createdTimestamp}ms. API Latency is ${Math.round(client.ping)}ms`)
   }
 
-  if (command === 'vote') {
+  else if (command === 'vote') {
     if (args[0] !== YES && args[0] !== NO) {
       channel.send(`You must vote "${YES}" or "${NO}"`)
       return
     }
 
-    const roles = {
-      [YES]: role(member, YES),
-      [NO]: role(member, NO),
-    }
-
     member.addRole(roles[args[0]])
-    channel.send(`You have voted ${args[0]}!`)
+    channel.send(`You have voted ${args[0]}`)
 
-    if (memberRole(member, YES) && memberRole(member, NO)) {
-      console.log(args[0])
-      if (args[0] === YES) member.removeRole(roles[NO])
-      else member.removeRole(roles[YES])
+    if (args[0] === YES && memberRole(member, NO)) {
+      member.removeRole(roles[NO])
+    } else if (args[0] === NO && memberRole(member, YES)) {
+      member.removeRole(roles[YES])
     }
+  }
+
+  else if (command === 'unvote') {
+    member.removeRole(roles[NO])
+    member.removeRole(roles[YES])
+    channel.send('You have withdrawn your vote')
+  }
+
+  else {
+    channel.send('I did not understand that')
   }
 })
 
