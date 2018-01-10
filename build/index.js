@@ -8,6 +8,8 @@ var _discord2 = _interopRequireDefault(_discord);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
 
 var config = {
@@ -20,9 +22,21 @@ var client = new _discord2.default.Client();
 
 var votes = {};
 
+var YES = 'yes';
+var NO = 'no';
+
+function role(message, name) {
+  return message.guild.roles.find('name', name);
+}
+
+function memberRole(member, name) {
+  return member.roles.find('name', name);
+}
+
 client.on('message', function () {
   var _ref = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee(message) {
-    var args, command, m;
+    var args, command, member, channel, m, _roles, roles;
+
     return regeneratorRuntime.wrap(function _callee$(_context) {
       while (1) {
         switch (_context.prev = _context.next) {
@@ -45,38 +59,48 @@ client.on('message', function () {
           case 4:
             args = message.content.slice(config.prefix.length).trim().split(/ +/g);
             command = args.shift().toLowerCase();
+            member = message.member, channel = message.channel;
 
             if (!(command === 'ping')) {
-              _context.next = 11;
+              _context.next = 12;
               break;
             }
 
-            _context.next = 9;
-            return message.channel.send('Ping?');
+            _context.next = 10;
+            return channel.send('Ping?');
 
-          case 9:
+          case 10:
             m = _context.sent;
 
             m.edit('Pong! Latency is ' + (m.createdTimestamp - message.createdTimestamp) + 'ms. API Latency is ' + Math.round(client.ping) + 'ms');
 
-          case 11:
+          case 12:
             if (!(command === 'vote')) {
+              _context.next = 20;
+              break;
+            }
+
+            if (!(args[0] !== YES && args[0] !== NO)) {
               _context.next = 16;
               break;
             }
 
-            if (!(args[0] !== 'yes1' && args[0] !== 'no1')) {
-              _context.next = 15;
-              break;
-            }
-
-            message.channel.send('You must vote "yes1" or "no1"');
+            channel.send('You must vote "' + YES + '" or "' + NO + '"');
             return _context.abrupt('return');
 
-          case 15:
-            message.member.addRole(message.guild.roles.find('name', args[0]));
-
           case 16:
+            roles = (_roles = {}, _defineProperty(_roles, YES, role(member, YES)), _defineProperty(_roles, NO, role(member, NO)), _roles);
+
+
+            member.addRole(roles[args[0]]);
+            channel.send('You have voted ' + args[0] + '!');
+
+            if (memberRole(member, YES) && memberRole(member, NO)) {
+              console.log(args[0]);
+              if (args[0] === YES) member.removeRole(roles[NO]);else member.removeRole(roles[YES]);
+            }
+
+          case 20:
           case 'end':
             return _context.stop();
         }
