@@ -12,11 +12,13 @@ function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, a
 
 var config = {
   token: 'NDAwNjg2NzEzMjc1NTQ3NjU4.DTfQjA.scVNnpXI9igWQSJSiOJC8E1pI8g',
-  prefix: '?'
+  prefix: '$'
 };
 
 
 var client = new _discord2.default.Client();
+
+var votes = {};
 
 client.on('message', function () {
   var _ref = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee(message) {
@@ -44,13 +46,13 @@ client.on('message', function () {
             args = message.content.slice(config.prefix.length).trim().split(/ +/g);
             command = args.shift().toLowerCase();
 
-            if (!(command === "ping")) {
+            if (!(command === 'ping')) {
               _context.next = 11;
               break;
             }
 
             _context.next = 9;
-            return message.channel.send("Ping?");
+            return message.channel.send('Ping?');
 
           case 9:
             m = _context.sent;
@@ -58,6 +60,23 @@ client.on('message', function () {
             m.edit('Pong! Latency is ' + (m.createdTimestamp - message.createdTimestamp) + 'ms. API Latency is ' + Math.round(client.ping) + 'ms');
 
           case 11:
+            if (!(command === 'vote')) {
+              _context.next = 16;
+              break;
+            }
+
+            if (!(args[0] !== 'yes1' && args[0] !== 'no1')) {
+              _context.next = 15;
+              break;
+            }
+
+            message.channel.send('You must vote "yes1" or "no1"');
+            return _context.abrupt('return');
+
+          case 15:
+            message.member.addRole(message.guild.roles.find('name', args[0]));
+
+          case 16:
           case 'end':
             return _context.stop();
         }
