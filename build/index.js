@@ -134,7 +134,7 @@ client.on('message', function () {
 	var _ref2 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(message) {
 		var _roles;
 
-		var args, command, member, channel, guild, roles, m, yesVotes, noVotes, memberCountHalf, _iteratorNormalCompletion, _didIteratorError, _iteratorError, _iterator, _step, member2, end, difference, previousTurnMember, previousTurnI, nextTurnI, activeTurnMember, messages, _yesVotes, _noVotes, _iteratorNormalCompletion2, _didIteratorError2, _iteratorError2, _iterator2, _step2, _member, _iteratorNormalCompletion3, _didIteratorError3, _iteratorError3, _iterator3, _step3, _member2;
+		var args, command, member, channel, guild, roles, m, yesVotes, noVotes, memberCountHalf, _iteratorNormalCompletion, _didIteratorError, _iteratorError, _iterator, _step, member2, end, difference, _iteratorNormalCompletion2, _didIteratorError2, _iteratorError2, _iterator2, _step2, _member, previousTurnMember, previousTurnI, nextTurnI, activeTurnMember, messages, _yesVotes, _noVotes, _iteratorNormalCompletion3, _didIteratorError3, _iteratorError3, _iterator3, _step3, _member2, _iteratorNormalCompletion4, _didIteratorError4, _iteratorError4, _iterator4, _step4, _member3;
 
 		return regeneratorRuntime.wrap(function _callee2$(_context2) {
 			while (1) {
@@ -191,12 +191,12 @@ client.on('message', function () {
 						m = _context2.sent;
 
 						m.edit('Pong! Latency is ' + (m.createdTimestamp - message.createdTimestamp) + 'ms. API Latency is ' + Math.round(client.ping) + 'ms');
-						_context2.next = 114;
+						_context2.next = 148;
 						break;
 
 					case 21:
 						if (!(command === 'vote')) {
-							_context2.next = 53;
+							_context2.next = 87;
 							break;
 						}
 
@@ -273,132 +273,181 @@ client.on('message', function () {
 						}
 
 						console.log(1);
-						if (end) {
-							// for (let member2 of guild.members.array()) {
-							// 	member2.removeRole(roles[NO])
-							// 	member2.removeRole(roles[YES])
-							// }
 
-
-							previousTurnMember = currentTurnMember(guild);
-
-
-							previousTurnMember.removeRole(roles[CURRENT_TURN_ROLE]);
-							previousTurnI = proposalQueue.indexOf(previousTurnMember.id);
-							nextTurnI = void 0;
-
-							if (previousTurnI === proposalQueue.length - 1) {
-								// TODO: get this to work
-								// setData('cycleCount', data.cycleCount + 1)
-								// sendChannel(guild, ANNOUNCEMENT_CHANNEL, `Cycle #${data.cycleCount} has begun!`)
-								nextTurnI = 0;
-							} else {
-								nextTurnI = previousTurnI + 1;
-							}
-							activeTurnMember = guild.members.find('id', proposalQueue[nextTurnI]);
-
-							activeTurnMember.addRole(roles[CURRENT_TURN_ROLE]);
-
-							messages = findChannel(guild, PROPOSAL_CHANNEL).messages.array().slice(1);
-
-							sendChannel(guild, ARCHIVE_CHANNEL, '\n**Action: ' + messages.shift() + '**\nSponsor: ' + previousTurnMember.displayName + '\nStatus: ' + end + ' by ' + difference + ' votes\n__**Proposal Text**__\n' + messages.join('\n') + '\n\t\t\t');
-							cleanChannel(guild, PROPOSAL_CHANNEL);
-							sendChannel(guild, PROPOSAL_CHANNEL, 'Submit official proposals here. It is currently ' + activeTurnMember.displayName + '\'s turn.');
-						} else {
-							member.addRole(roles[args[0]]);
-							// channel.send(`You have voted ${args[0]}`)
-
-							if (args[0] === YES && memberRole(member, NO)) {
-								member.removeRole(roles[NO]);
-							} else if (args[0] === NO && memberRole(member, YES)) {
-								member.removeRole(roles[YES]);
-							}
+						if (!end) {
+							_context2.next = 83;
+							break;
 						}
-						_context2.next = 114;
+
+						_iteratorNormalCompletion2 = true;
+						_didIteratorError2 = false;
+						_iteratorError2 = undefined;
+						_context2.prev = 54;
+
+						for (_iterator2 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+							_member = _step2.value;
+
+							_member.removeRole(roles[NO]);
+							_member.removeRole(roles[YES]);
+						}
+
+						_context2.next = 62;
 						break;
 
-					case 53:
+					case 58:
+						_context2.prev = 58;
+						_context2.t1 = _context2['catch'](54);
+						_didIteratorError2 = true;
+						_iteratorError2 = _context2.t1;
+
+					case 62:
+						_context2.prev = 62;
+						_context2.prev = 63;
+
+						if (!_iteratorNormalCompletion2 && _iterator2.return) {
+							_iterator2.return();
+						}
+
+					case 65:
+						_context2.prev = 65;
+
+						if (!_didIteratorError2) {
+							_context2.next = 68;
+							break;
+						}
+
+						throw _iteratorError2;
+
+					case 68:
+						return _context2.finish(65);
+
+					case 69:
+						return _context2.finish(62);
+
+					case 70:
+						previousTurnMember = currentTurnMember(guild);
+
+
+						previousTurnMember.removeRole(roles[CURRENT_TURN_ROLE]);
+						previousTurnI = proposalQueue.indexOf(previousTurnMember.id);
+						nextTurnI = void 0;
+
+						if (previousTurnI === proposalQueue.length - 1) {
+							// TODO: get this to work
+							// setData('cycleCount', data.cycleCount + 1)
+							// sendChannel(guild, ANNOUNCEMENT_CHANNEL, `Cycle #${data.cycleCount} has begun!`)
+							nextTurnI = 0;
+						} else {
+							nextTurnI = previousTurnI + 1;
+						}
+						activeTurnMember = guild.members.find('id', proposalQueue[nextTurnI]);
+
+						activeTurnMember.addRole(roles[CURRENT_TURN_ROLE]);
+
+						messages = findChannel(guild, PROPOSAL_CHANNEL).messages.array().slice(1);
+
+						sendChannel(guild, ARCHIVE_CHANNEL, '\n**Action: ' + messages.shift() + '**\nSponsor: ' + previousTurnMember.displayName + '\nStatus: ' + end + ' by ' + difference + ' votes\n__**Proposal Text**__\n' + messages.join('\n') + '\n\t\t\t');
+						cleanChannel(guild, PROPOSAL_CHANNEL);
+						sendChannel(guild, PROPOSAL_CHANNEL, 'Submit official proposals here. It is currently ' + activeTurnMember.displayName + '\'s turn.');
+						_context2.next = 85;
+						break;
+
+					case 83:
+						member.addRole(roles[args[0]]);
+						// channel.send(`You have voted ${args[0]}`)
+
+						if (args[0] === YES && memberRole(member, NO)) {
+							member.removeRole(roles[NO]);
+						} else if (args[0] === NO && memberRole(member, YES)) {
+							member.removeRole(roles[YES]);
+						}
+
+					case 85:
+						_context2.next = 148;
+						break;
+
+					case 87:
 						if (!(command === 'unvote')) {
-							_context2.next = 58;
+							_context2.next = 92;
 							break;
 						}
 
 						member.removeRole(roles[NO]);
 						member.removeRole(roles[YES]);
 						// channel.send('You have withdrawn your vote')
-						_context2.next = 114;
+						_context2.next = 148;
 						break;
 
-					case 58:
+					case 92:
 						if (!(command === 'vote-info')) {
-							_context2.next = 83;
+							_context2.next = 117;
 							break;
 						}
 
 						_yesVotes = 0;
 						_noVotes = 0;
-						_iteratorNormalCompletion2 = true;
-						_didIteratorError2 = false;
-						_iteratorError2 = undefined;
-						_context2.prev = 64;
+						_iteratorNormalCompletion3 = true;
+						_didIteratorError3 = false;
+						_iteratorError3 = undefined;
+						_context2.prev = 98;
 
 
-						for (_iterator2 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-							_member = _step2.value;
+						for (_iterator3 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+							_member2 = _step3.value;
 
-							if (memberRole(_member, YES)) _yesVotes += 1;else if (memberRole(_member, NO)) _noVotes += 1;
+							if (memberRole(_member2, YES)) _yesVotes += 1;else if (memberRole(_member2, NO)) _noVotes += 1;
 						}
-						_context2.next = 72;
+						_context2.next = 106;
 						break;
 
-					case 68:
-						_context2.prev = 68;
-						_context2.t1 = _context2['catch'](64);
-						_didIteratorError2 = true;
-						_iteratorError2 = _context2.t1;
+					case 102:
+						_context2.prev = 102;
+						_context2.t2 = _context2['catch'](98);
+						_didIteratorError3 = true;
+						_iteratorError3 = _context2.t2;
 
-					case 72:
-						_context2.prev = 72;
-						_context2.prev = 73;
+					case 106:
+						_context2.prev = 106;
+						_context2.prev = 107;
 
-						if (!_iteratorNormalCompletion2 && _iterator2.return) {
-							_iterator2.return();
+						if (!_iteratorNormalCompletion3 && _iterator3.return) {
+							_iterator3.return();
 						}
 
-					case 75:
-						_context2.prev = 75;
+					case 109:
+						_context2.prev = 109;
 
-						if (!_didIteratorError2) {
-							_context2.next = 78;
+						if (!_didIteratorError3) {
+							_context2.next = 112;
 							break;
 						}
 
-						throw _iteratorError2;
+						throw _iteratorError3;
 
-					case 78:
-						return _context2.finish(75);
+					case 112:
+						return _context2.finish(109);
 
-					case 79:
-						return _context2.finish(72);
+					case 113:
+						return _context2.finish(106);
 
-					case 80:
+					case 114:
 						channel.send('Here:\ntotal members: **' + totalMembers() + '**\nmembers needed: **' + membersNeeded(guild) + '**\ntotal for: **' + _yesVotes + '**\ntotal against: **' + _noVotes + '**\n\t\t');
-						_context2.next = 114;
+						_context2.next = 148;
 						break;
 
-					case 83:
+					case 117:
 						if (!(command === 'help')) {
-							_context2.next = 87;
+							_context2.next = 121;
 							break;
 						}
 
 						channel.send('Here are my commands:\n**vote [yes/no]**   - vote for a proposal\n**vote-info**   - see the current vote statistics\n**unvote**   - cancel your vote\n\n**turn-info**   - see the current turns\n\n**ping**   - test my speed\n\t\t');
-						_context2.next = 114;
+						_context2.next = 148;
 						break;
 
-					case 87:
+					case 121:
 						if (!(command === 'turn-info')) {
-							_context2.next = 91;
+							_context2.next = 125;
 							break;
 						}
 
@@ -410,75 +459,75 @@ client.on('message', function () {
 							}
 							return name;
 						}).join('\n') + '\n\t\t');
-						_context2.next = 114;
+						_context2.next = 148;
 						break;
 
-					case 91:
+					case 125:
 						if (!(process.env.NODE_ENV !== 'production' && command === 'green')) {
-							_context2.next = 113;
+							_context2.next = 147;
 							break;
 						}
 
-						_iteratorNormalCompletion3 = true;
-						_didIteratorError3 = false;
-						_iteratorError3 = undefined;
-						_context2.prev = 95;
+						_iteratorNormalCompletion4 = true;
+						_didIteratorError4 = false;
+						_iteratorError4 = undefined;
+						_context2.prev = 129;
 
-						for (_iterator3 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-							_member2 = _step3.value;
+						for (_iterator4 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+							_member3 = _step4.value;
 
-							_member2.addRole(roles[YES]);
+							_member3.addRole(roles[YES]);
 						}
-						_context2.next = 103;
+						_context2.next = 137;
 						break;
 
-					case 99:
-						_context2.prev = 99;
-						_context2.t2 = _context2['catch'](95);
-						_didIteratorError3 = true;
-						_iteratorError3 = _context2.t2;
+					case 133:
+						_context2.prev = 133;
+						_context2.t3 = _context2['catch'](129);
+						_didIteratorError4 = true;
+						_iteratorError4 = _context2.t3;
 
-					case 103:
-						_context2.prev = 103;
-						_context2.prev = 104;
+					case 137:
+						_context2.prev = 137;
+						_context2.prev = 138;
 
-						if (!_iteratorNormalCompletion3 && _iterator3.return) {
-							_iterator3.return();
+						if (!_iteratorNormalCompletion4 && _iterator4.return) {
+							_iterator4.return();
 						}
 
-					case 106:
-						_context2.prev = 106;
+					case 140:
+						_context2.prev = 140;
 
-						if (!_didIteratorError3) {
-							_context2.next = 109;
+						if (!_didIteratorError4) {
+							_context2.next = 143;
 							break;
 						}
 
-						throw _iteratorError3;
+						throw _iteratorError4;
 
-					case 109:
-						return _context2.finish(106);
+					case 143:
+						return _context2.finish(140);
 
-					case 110:
-						return _context2.finish(103);
+					case 144:
+						return _context2.finish(137);
 
-					case 111:
-						_context2.next = 114;
+					case 145:
+						_context2.next = 148;
 						break;
 
-					case 113:
+					case 147:
 						if (process.env.NODE_ENV !== 'production' && command === 'clear') {
 							channel.bulkDelete(parseInt(args[0]) + 1);
 						} else {
 							channel.send('I did not understand that');
 						}
 
-					case 114:
+					case 148:
 					case 'end':
 						return _context2.stop();
 				}
 			}
-		}, _callee2, undefined, [[31, 35, 39, 47], [40,, 42, 46], [64, 68, 72, 80], [73,, 75, 79], [95, 99, 103, 111], [104,, 106, 110]]);
+		}, _callee2, undefined, [[31, 35, 39, 47], [40,, 42, 46], [54, 58, 62, 70], [63,, 65, 69], [98, 102, 106, 114], [107,, 109, 113], [129, 133, 137, 145], [138,, 140, 144]]);
 	}));
 
 	return function (_x) {

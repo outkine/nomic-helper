@@ -156,11 +156,10 @@ client.on('message', async message => {
 
 		console.log(1)
 		if (end) {
-			// for (let member2 of guild.members.array()) {
-			// 	member2.removeRole(roles[NO])
-			// 	member2.removeRole(roles[YES])
-			// }
-
+			for (let member2 of guild.members.array()) {
+				member2.removeRole(roles[NO])
+				member2.removeRole(roles[YES])
+			}
 
 			const previousTurnMember = currentTurnMember(guild)
 
