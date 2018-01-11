@@ -32,6 +32,8 @@ const INTRODUCTION_CHANNEL = 'introductions'
 const PROPOSAL_CHANNEL = 'current-proposal'
 const ANNOUNCEMENT_CHANNEL = 'announcements'
 const ARCHIVE_CHANNEL = 'archived-proposals'
+const MUTABLE_CHANNEL = 'mutable-ruleset'
+const IMMUTABLE_CHANNEL = 'immutable-ruleset'
 
 const DEVELOPER_ROLE = 'react developer'
 const YES = 'yes'
@@ -154,7 +156,6 @@ client.on('message', async message => {
 			difference = noVotes - yesVotes
 		}
 
-		console.log(1)
 		if (end) {
 			for (let member2 of guild.members.array()) {
 				member2.removeRole(roles[NO])
@@ -179,12 +180,17 @@ client.on('message', async message => {
 			activeTurnMember.addRole(roles[CURRENT_TURN_ROLE])
 
 			const messages = findChannel(guild, PROPOSAL_CHANNEL).messages.array().slice(1)
+			const title = message.shift()
+			const body = messages.join('\n')
+			sendChannel(guild, MUTABLE_CHANNEL, `
+**${title}.** ${body}
+			`)
 			sendChannel(guild, ARCHIVE_CHANNEL, `
-**Action: ${messages.shift()}**
+**Action: ${title}**
 Sponsor: ${previousTurnMember.displayName}
 Status: ${end} by ${difference} votes
 __**Proposal Text**__
-${messages.join('\n')}
+${body}
 			`)
 			cleanChannel(guild, PROPOSAL_CHANNEL)
 			sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently ${activeTurnMember.displayName}'s turn.`)
@@ -257,6 +263,12 @@ ${proposalQueue
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'clear') {
 		channel.bulkDelete(parseInt(args[0]) + 1)
+	}
+
+	else if (process.env.NODE_ENV !== 'production' && command === 'set-role') {
+		const turnMember = currentTurnMember(guild)
+		turnMember.removeRole(roles[CURRENT_TURN_ROLE])
+		guild.members.find('displayName', args[0]).addRole(roles[CURRENT_TURN_ROLE])
 	}
 
 	else {

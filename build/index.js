@@ -50,6 +50,8 @@ var INTRODUCTION_CHANNEL = 'introductions';
 var PROPOSAL_CHANNEL = 'current-proposal';
 var ANNOUNCEMENT_CHANNEL = 'announcements';
 var ARCHIVE_CHANNEL = 'archived-proposals';
+var MUTABLE_CHANNEL = 'mutable-ruleset';
+var IMMUTABLE_CHANNEL = 'immutable-ruleset';
 
 var DEVELOPER_ROLE = 'react developer';
 var YES = 'yes';
@@ -134,7 +136,7 @@ client.on('message', function () {
 	var _ref2 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(message) {
 		var _roles;
 
-		var args, command, member, channel, guild, roles, m, yesVotes, noVotes, memberCountHalf, _iteratorNormalCompletion, _didIteratorError, _iteratorError, _iterator, _step, member2, end, difference, _iteratorNormalCompletion2, _didIteratorError2, _iteratorError2, _iterator2, _step2, _member, previousTurnMember, previousTurnI, nextTurnI, activeTurnMember, messages, _yesVotes, _noVotes, _iteratorNormalCompletion3, _didIteratorError3, _iteratorError3, _iterator3, _step3, _member2, _iteratorNormalCompletion4, _didIteratorError4, _iteratorError4, _iterator4, _step4, _member3;
+		var args, command, member, channel, guild, roles, m, yesVotes, noVotes, memberCountHalf, _iteratorNormalCompletion, _didIteratorError, _iteratorError, _iterator, _step, member2, end, difference, _iteratorNormalCompletion2, _didIteratorError2, _iteratorError2, _iterator2, _step2, _member, previousTurnMember, previousTurnI, nextTurnI, activeTurnMember, messages, title, body, _yesVotes, _noVotes, _iteratorNormalCompletion3, _didIteratorError3, _iteratorError3, _iterator3, _step3, _member2, _iteratorNormalCompletion4, _didIteratorError4, _iteratorError4, _iterator4, _step4, _member3, turnMember;
 
 		return regeneratorRuntime.wrap(function _callee2$(_context2) {
 			while (1) {
@@ -191,12 +193,12 @@ client.on('message', function () {
 						m = _context2.sent;
 
 						m.edit('Pong! Latency is ' + (m.createdTimestamp - message.createdTimestamp) + 'ms. API Latency is ' + Math.round(client.ping) + 'ms');
-						_context2.next = 148;
+						_context2.next = 150;
 						break;
 
 					case 21:
 						if (!(command === 'vote')) {
-							_context2.next = 87;
+							_context2.next = 89;
 							break;
 						}
 
@@ -272,17 +274,15 @@ client.on('message', function () {
 							difference = noVotes - yesVotes;
 						}
 
-						console.log(1);
-
 						if (!end) {
-							_context2.next = 83;
+							_context2.next = 85;
 							break;
 						}
 
 						_iteratorNormalCompletion2 = true;
 						_didIteratorError2 = false;
 						_iteratorError2 = undefined;
-						_context2.prev = 54;
+						_context2.prev = 53;
 
 						for (_iterator2 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
 							_member = _step2.value;
@@ -291,40 +291,40 @@ client.on('message', function () {
 							_member.removeRole(roles[YES]);
 						}
 
-						_context2.next = 62;
+						_context2.next = 61;
 						break;
 
-					case 58:
-						_context2.prev = 58;
-						_context2.t1 = _context2['catch'](54);
+					case 57:
+						_context2.prev = 57;
+						_context2.t1 = _context2['catch'](53);
 						_didIteratorError2 = true;
 						_iteratorError2 = _context2.t1;
 
-					case 62:
+					case 61:
+						_context2.prev = 61;
 						_context2.prev = 62;
-						_context2.prev = 63;
 
 						if (!_iteratorNormalCompletion2 && _iterator2.return) {
 							_iterator2.return();
 						}
 
-					case 65:
-						_context2.prev = 65;
+					case 64:
+						_context2.prev = 64;
 
 						if (!_didIteratorError2) {
-							_context2.next = 68;
+							_context2.next = 67;
 							break;
 						}
 
 						throw _iteratorError2;
 
+					case 67:
+						return _context2.finish(64);
+
 					case 68:
-						return _context2.finish(65);
+						return _context2.finish(61);
 
 					case 69:
-						return _context2.finish(62);
-
-					case 70:
 						previousTurnMember = currentTurnMember(guild);
 
 
@@ -345,14 +345,17 @@ client.on('message', function () {
 						activeTurnMember.addRole(roles[CURRENT_TURN_ROLE]);
 
 						messages = findChannel(guild, PROPOSAL_CHANNEL).messages.array().slice(1);
+						title = message.shift();
+						body = messages.join('\n');
 
-						sendChannel(guild, ARCHIVE_CHANNEL, '\n**Action: ' + messages.shift() + '**\nSponsor: ' + previousTurnMember.displayName + '\nStatus: ' + end + ' by ' + difference + ' votes\n__**Proposal Text**__\n' + messages.join('\n') + '\n\t\t\t');
+						sendChannel(guild, MUTABLE_CHANNEL, '\n**' + title + '.** ' + body + '\n\t\t\t');
+						sendChannel(guild, ARCHIVE_CHANNEL, '\n**Action: ' + title + '**\nSponsor: ' + previousTurnMember.displayName + '\nStatus: ' + end + ' by ' + difference + ' votes\n__**Proposal Text**__\n' + body + '\n\t\t\t');
 						cleanChannel(guild, PROPOSAL_CHANNEL);
 						sendChannel(guild, PROPOSAL_CHANNEL, 'Submit official proposals here. It is currently ' + activeTurnMember.displayName + '\'s turn.');
-						_context2.next = 85;
+						_context2.next = 87;
 						break;
 
-					case 83:
+					case 85:
 						member.addRole(roles[args[0]]);
 						// channel.send(`You have voted ${args[0]}`)
 
@@ -362,25 +365,25 @@ client.on('message', function () {
 							member.removeRole(roles[YES]);
 						}
 
-					case 85:
-						_context2.next = 148;
+					case 87:
+						_context2.next = 150;
 						break;
 
-					case 87:
+					case 89:
 						if (!(command === 'unvote')) {
-							_context2.next = 92;
+							_context2.next = 94;
 							break;
 						}
 
 						member.removeRole(roles[NO]);
 						member.removeRole(roles[YES]);
 						// channel.send('You have withdrawn your vote')
-						_context2.next = 148;
+						_context2.next = 150;
 						break;
 
-					case 92:
+					case 94:
 						if (!(command === 'vote-info')) {
-							_context2.next = 117;
+							_context2.next = 119;
 							break;
 						}
 
@@ -389,7 +392,7 @@ client.on('message', function () {
 						_iteratorNormalCompletion3 = true;
 						_didIteratorError3 = false;
 						_iteratorError3 = undefined;
-						_context2.prev = 98;
+						_context2.prev = 100;
 
 
 						for (_iterator3 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
@@ -397,57 +400,57 @@ client.on('message', function () {
 
 							if (memberRole(_member2, YES)) _yesVotes += 1;else if (memberRole(_member2, NO)) _noVotes += 1;
 						}
-						_context2.next = 106;
+						_context2.next = 108;
 						break;
 
-					case 102:
-						_context2.prev = 102;
-						_context2.t2 = _context2['catch'](98);
+					case 104:
+						_context2.prev = 104;
+						_context2.t2 = _context2['catch'](100);
 						_didIteratorError3 = true;
 						_iteratorError3 = _context2.t2;
 
-					case 106:
-						_context2.prev = 106;
-						_context2.prev = 107;
+					case 108:
+						_context2.prev = 108;
+						_context2.prev = 109;
 
 						if (!_iteratorNormalCompletion3 && _iterator3.return) {
 							_iterator3.return();
 						}
 
-					case 109:
-						_context2.prev = 109;
+					case 111:
+						_context2.prev = 111;
 
 						if (!_didIteratorError3) {
-							_context2.next = 112;
+							_context2.next = 114;
 							break;
 						}
 
 						throw _iteratorError3;
 
-					case 112:
-						return _context2.finish(109);
-
-					case 113:
-						return _context2.finish(106);
-
 					case 114:
+						return _context2.finish(111);
+
+					case 115:
+						return _context2.finish(108);
+
+					case 116:
 						channel.send('Here:\ntotal members: **' + totalMembers() + '**\nmembers needed: **' + membersNeeded(guild) + '**\ntotal for: **' + _yesVotes + '**\ntotal against: **' + _noVotes + '**\n\t\t');
-						_context2.next = 148;
+						_context2.next = 150;
 						break;
 
-					case 117:
+					case 119:
 						if (!(command === 'help')) {
-							_context2.next = 121;
+							_context2.next = 123;
 							break;
 						}
 
 						channel.send('Here are my commands:\n**vote [yes/no]**   - vote for a proposal\n**vote-info**   - see the current vote statistics\n**unvote**   - cancel your vote\n\n**turn-info**   - see the current turns\n\n**ping**   - test my speed\n\t\t');
-						_context2.next = 148;
+						_context2.next = 150;
 						break;
 
-					case 121:
+					case 123:
 						if (!(command === 'turn-info')) {
-							_context2.next = 125;
+							_context2.next = 127;
 							break;
 						}
 
@@ -459,75 +462,80 @@ client.on('message', function () {
 							}
 							return name;
 						}).join('\n') + '\n\t\t');
-						_context2.next = 148;
+						_context2.next = 150;
 						break;
 
-					case 125:
+					case 127:
 						if (!(process.env.NODE_ENV !== 'production' && command === 'green')) {
-							_context2.next = 147;
+							_context2.next = 149;
 							break;
 						}
 
 						_iteratorNormalCompletion4 = true;
 						_didIteratorError4 = false;
 						_iteratorError4 = undefined;
-						_context2.prev = 129;
+						_context2.prev = 131;
 
 						for (_iterator4 = guild.members.array()[Symbol.iterator](); !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
 							_member3 = _step4.value;
 
 							_member3.addRole(roles[YES]);
 						}
-						_context2.next = 137;
+						_context2.next = 139;
 						break;
 
-					case 133:
-						_context2.prev = 133;
-						_context2.t3 = _context2['catch'](129);
+					case 135:
+						_context2.prev = 135;
+						_context2.t3 = _context2['catch'](131);
 						_didIteratorError4 = true;
 						_iteratorError4 = _context2.t3;
 
-					case 137:
-						_context2.prev = 137;
-						_context2.prev = 138;
+					case 139:
+						_context2.prev = 139;
+						_context2.prev = 140;
 
 						if (!_iteratorNormalCompletion4 && _iterator4.return) {
 							_iterator4.return();
 						}
 
-					case 140:
-						_context2.prev = 140;
+					case 142:
+						_context2.prev = 142;
 
 						if (!_didIteratorError4) {
-							_context2.next = 143;
+							_context2.next = 145;
 							break;
 						}
 
 						throw _iteratorError4;
 
-					case 143:
-						return _context2.finish(140);
-
-					case 144:
-						return _context2.finish(137);
-
 					case 145:
-						_context2.next = 148;
-						break;
+						return _context2.finish(142);
+
+					case 146:
+						return _context2.finish(139);
 
 					case 147:
+						_context2.next = 150;
+						break;
+
+					case 149:
 						if (process.env.NODE_ENV !== 'production' && command === 'clear') {
 							channel.bulkDelete(parseInt(args[0]) + 1);
+						} else if (process.env.NODE_ENV !== 'production' && command === 'set-role') {
+							turnMember = currentTurnMember(guild);
+
+							turnMember.removeRole(roles[CURRENT_TURN_ROLE]);
+							guild.members.find('displayName', args[0]).addRole(roles[CURRENT_TURN_ROLE]);
 						} else {
 							channel.send('I did not understand that');
 						}
 
-					case 148:
+					case 150:
 					case 'end':
 						return _context2.stop();
 				}
 			}
-		}, _callee2, undefined, [[31, 35, 39, 47], [40,, 42, 46], [54, 58, 62, 70], [63,, 65, 69], [98, 102, 106, 114], [107,, 109, 113], [129, 133, 137, 145], [138,, 140, 144]]);
+		}, _callee2, undefined, [[31, 35, 39, 47], [40,, 42, 46], [53, 57, 61, 69], [62,, 64, 68], [100, 104, 108, 116], [109,, 111, 115], [131, 135, 139, 147], [140,, 142, 146]]);
 	}));
 
 	return function (_x) {
