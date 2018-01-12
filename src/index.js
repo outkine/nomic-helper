@@ -1,33 +1,40 @@
 import 'babel-polyfill'
 import discord from 'discord.js'
 import fs from 'fs'
-import path, { normalize } from 'path'
+import path from 'path'
+import Sequelize from 'sequelize'
+import schedule from 'node-schedule'
 
 function loadJson (filePath) {
-	return JSON.parse(fs.readFileSync(path.resolve(__dirname, filePath), 'utf8'))
+	return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+}
+
+function fixPath (filePath) {
+	return path.resolve(__dirname, filePath)
 }
 
 function writeJson (filePath, data) {
 	fs.writeFile(path.resolve(__dirname, filePath), JSON.stringify(data), 'utf8', err => {
-		console.log(err)
+		console.error(err)
 	})
 }
 
-let CONFIG_PATH, DATA_PATH
+let CONFIG_PATH, DB_PATH
 if (process.env.NODE_ENV === 'production') {
 	CONFIG_PATH = './config.json'
-	DATA_PATH = './data.json'
+	DB_PATH = './db.sqlite'
 } else {
 	CONFIG_PATH = '../config.json'
-	DATA_PATH = '../data.json'
+	DB_PATH = '../db.sqlite'
 }
+CONFIG_PATH = fixPath(CONFIG_PATH)
+DB_PATH = fixPath(DB_PATH)
 const CONFIG = loadJson(CONFIG_PATH)
 
 const BOT_NUMBER = 2
 const PRODUCTION_PREFIX = '$'
 const GUILD = 'Northside Nomic'
 
-const VOTING_CHANNEL = 'voting'
 const INTRODUCTION_CHANNEL = 'introductions'
 const PROPOSAL_CHANNEL = 'current-proposal'
 const ANNOUNCEMENT_CHANNEL = 'announcements'
@@ -69,35 +76,133 @@ function membersNeeded () {
 	return Math.round(totalMembers() / 2)
 }
 
+function currentGuild (client) {
+	return client.guilds.find('name', GUILD)
+}
+
+function allMembers (client) {
+	return currentGuild(client).members.filter(member => !member.user.bot)
+}
+
 function calculateProposalQueue (client) {
-	return client.guilds.find('name', GUILD).members
-		.filter(member => !member.user.bot)
+	return allMembers(client)
 		.sort((a, b) => {
 			return a.joinedTimestamp - b.joinedTimestamp
 		})
 		.map(member => member.id)
 }
 
+var initializeMemberTable = async (client) => {
+	for (let member of allMembers(client).array()) {
+		await Member.findOrCreate({
+			where: {
+				id: member.id
+			},
+			defaults: {
+				daysInactive: 0,
+			}
+		})
+	}
+}
+
 function currentTurnMember (guild) {
 	return guild.members.filterArray(member => memberRole(member, CURRENT_TURN_ROLE))[0]
 }
 
-// const data = loadJson(DATA_PATH)
-
-// function setData (name, value) {
-// 	data[name] = value
-// 	writeJson(DATA_PATH, data)
-// }
+function sqlToDiscordMember (member) {
+	return currentGuild(client).members.find('id', member.get('id'))
+}
 
 const client = new discord.Client()
 let proposalQueue
 
-function updateProposalQueue () {
-	proposalQueue = calculateProposalQueue(client)
+const sequelize = new Sequelize('awesome-db', null, null, {
+	dialect: 'sqlite',
+	storage: DB_PATH,
+})
+
+const Member = sequelize.define('Member', {
+	id: {
+		type: Sequelize.TEXT,
+		primaryKey: true,
+		allowNull: false,
+	},
+	daysInactive: {
+		type: Sequelize.INTEGER,
+		allowNull: false,
+	},
+
+}, {
+	timestamps: false,
+})
+
+const Misc = sequelize.define('Misc', {
+	cycles: {
+		type: Sequelize.INTEGER,
+		allowNull: false,
+	},
+}, {
+	timestamps: false,
+	freezeTableName: true,
+})
+
+sequelize
+	.authenticate()
+	.then(async () => {
+		if (!(await Misc.count())) {
+			Misc.create({ cycles: 0 }).catch(err => console.error(err))
+		}
+	})
+	.catch(err => {
+		console.error('Unable to connect to the database:', err)
+	})
+
+var addMember = async (member) => {
+	proposalQueue.push(member.id)
+	Member.create({ daysInactive: 0, id: member.id })
 }
 
+var removeMember = async (member) => {
+	proposalQueue = proposalQueue.filter(member2 => member2.id !== member.id)
+	Member.destroy({
+		where: {
+			id: member.id
+		}
+	})
+}
+
+schedule.scheduleJob('0 0 * * *', async () => {
+	await Member.increment('daysInactive', { where: {} })
+
+	const members = await Member.findAll({
+		where: {
+			daysInactive: 2
+		}
+	})
+
+	Promise.all(members.map(async member => {
+		const channel = await sqlToDiscordMember(member).createDM()
+		return channel.send('Hello! This is a friendly reminder to check-in at Northside Nomic within the next 24 hours or you will be kicked.')
+	}))
+
+	const members2 = await Member.findAll({
+		where: {
+			daysInactive: {
+				[Sequelize.Op.gt]: 2
+			}
+		}
+	})
+
+	Promise.all(members2.map(async member => {
+		const member2 = sqlToDiscordMember(member)
+		await sendChannel(currentGuild(client), ANNOUNCEMENT_CHANNEL, `@${member2.displayName} has been kicked.`)
+		return member2.kick('You have failed to complete a check-in 2 consecutive times.')
+	}))
+})
+
 client.on('ready', async () => {
-	updateProposalQueue()
+	proposalQueue = calculateProposalQueue(client)
+	initializeMemberTable(client)
 })
 
 client.on('message', async message => {
@@ -147,11 +252,11 @@ client.on('message', async message => {
 
 		let end, difference
 		if (yesVotes >= memberCountHalf) {
-			sendChannel(guild, VOTING_CHANNEL, 'The proposal has been passed!')
+			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been passed!')
 			end = 'passed'
 			difference = yesVotes - noVotes
 		} else if (noVotes > memberCountHalf) {
-			sendChannel(guild, VOTING_CHANNEL, 'The proposal has been rejected!')
+			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been rejected!')
 			end = 'rejected'
 			difference = noVotes - yesVotes
 		}
@@ -169,9 +274,7 @@ client.on('message', async message => {
 
 			let nextTurnI
 			if (previousTurnI === proposalQueue.length - 1) {
-				// TODO: get this to work
-				// setData('cycleCount', data.cycleCount + 1)
-				// sendChannel(guild, ANNOUNCEMENT_CHANNEL, `Cycle #${data.cycleCount} has begun!`)
+				Misc.increment('cycles', { where: {} })
 				nextTurnI = 0
 			} else {
 				nextTurnI = previousTurnI + 1
@@ -187,13 +290,13 @@ client.on('message', async message => {
 			`)
 			sendChannel(guild, ARCHIVE_CHANNEL, `
 **Action: ${title}**
-Sponsor: ${previousTurnMember.displayName}
+Sponsor: @${previousTurnMember.displayName}
 Status: ${end} by ${difference} votes
 __**Proposal Text**__
 ${body}
 			`)
 			cleanChannel(guild, PROPOSAL_CHANNEL)
-			sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently ${activeTurnMember.displayName}'s turn.`)
+			sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently @${activeTurnMember.displayName}'s turn.`)
 		} else {
 			member.addRole(roles[args[0]])
 			// channel.send(`You have voted ${args[0]}`)
@@ -236,12 +339,14 @@ total against: **${noVotes}**
 **turn-info**   - see the current turns
 
 **ping**   - test my speed
+
+**check-in**   - perform your daily check-in
 		`)
 	}
 
 	else if (command === 'turn-info') {
-// **Cycle: ${data.cycleCount}**
 		channel.send(`Here:
+**Cycle: ${(await Misc.findOne()).get('cycles')}**
 ${proposalQueue
 	.map(id => {
 			let name = guild.members.find('id', id).displayName
@@ -253,6 +358,17 @@ ${proposalQueue
 	.join('\n')
 }
 		`)
+	}
+
+	else if (command === 'check-in') {
+		await Member.update({
+			daysInactive: 0
+		}, {
+			where: {
+				id: member.id
+			}
+		})
+		channel.send('Success!')
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'green') {
@@ -271,6 +387,10 @@ ${proposalQueue
 		guild.members.find('displayName', args[0]).addRole(roles[CURRENT_TURN_ROLE])
 	}
 
+	else if (process.env.NODE_ENV !== 'production' && command === 'reset-check-in') {
+		Member.update({ 'daysInactive': 0 }, { where : {} })
+	}
+
 	else {
 		channel.send('I did not understand that')
 	}
@@ -279,13 +399,13 @@ ${proposalQueue
 
 client.on('guildMemberAdd', async member => {
 	sendChannel(member.guild, INTRODUCTION_CHANNEL, `
-Welcome ${member.displayName}! Please introduce yourself in this channel. You have been placed in the proposal queue: your can view your place with \`${PRODUCTION_PREFIX}turn-info\`.
+Welcome @${member.displayName}! Please introduce yourself in this channel. You have been placed in the proposal queue: your can view your place with \`${PRODUCTION_PREFIX}turn-info\`.
 	`)
-	updateProposalQueue()
+	addMember()
 })
 
 client.on('guildMemberRemove', async () => {
-	updateProposalQueue()
+	removeMember()
 })
 
 client.login(CONFIG.token)

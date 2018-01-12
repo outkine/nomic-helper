@@ -26,6 +26,9 @@
   "homepage": "https://github.com/Jetmate/nomic-helper#readme",
   "dependencies": {
     "babel-polyfill": "^6.26.0",
-    "discord.js": "^11.2.1"
+    "discord.js": "^11.2.1",
+    "node-schedule": "^1.3.0",
+    "sequelize": "^4.31.0",
+    "sqlite3": "^3.1.13"
   }
 }
