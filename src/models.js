@@ -40,6 +40,14 @@ export default function (sequelize) {
       type: Sequelize.TEXT,
       allowNull: false,
     },
+    isYesNo: {
+      type: Sequelize.BOOLEAN,
+      allowNull: false,
+    },
+    channel: {
+      type: Sequelize.TEXT,
+      allowNull: false,
+    }
   }, {
     timestamps: false,
   })

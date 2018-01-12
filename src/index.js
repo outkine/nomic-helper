@@ -59,7 +59,7 @@ function sendChannel (guild, name, message) {
 }
 
 function cleanChannel (guild, name) {
-	findChannel(guild, name).bulkDelete(100, true)
+	return findChannel(guild, name).bulkDelete(100, true)
 }
 
 function totalMembers () {
@@ -105,6 +105,34 @@ function currentTurnMember (guild) {
 
 function idToDiscordMember (id) {
 	return currentGuild(client).members.find('id', id)
+}
+
+var initiateNextTurn = async (guild, roles) => {
+	const previousTurnMember = currentTurnMember(guild)
+
+	await previousTurnMember.removeRole(roles[CURRENT_TURN_ROLE])
+	const previousTurnI = proposalQueue.indexOf(previousTurnMember.id)
+
+	let nextTurnI
+	if (previousTurnI === proposalQueue.length - 1) {
+		db.Misc.increment('cycles', { where: {} })
+		nextTurnI = 0
+	} else {
+		nextTurnI = previousTurnI + 1
+	}
+	const activeTurnMember = guild.members.find('id', proposalQueue[nextTurnI])
+	activeTurnMember.addRole(roles[CURRENT_TURN_ROLE])
+
+	await cleanChannel(guild, PROPOSAL_CHANNEL)
+	sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently <@${activeTurnMember.id}>'s turn.`)
+
+	return previousTurnMember
+}
+
+function deletePoll (title) {
+	db.Poll.destroy({ where: { title: title } })
+	db.PollOption.destroy({ where: { poll: title } })
+	db.PollVote.destroy({ where: { poll: title } })
 }
 
 const client = new discord.Client()
@@ -225,11 +253,11 @@ client.on('message', async message => {
 
 		let end, difference
 		if (yesVotes >= membersNeeded(true)) {
-			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been passed!')
+			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been passed! :white_check_mark:')
 			end = 'passed'
 			difference = yesVotes - noVotes
 		} else if (noVotes >= membersNeeded(false)) {
-			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been rejected!')
+			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been rejected! :x:')
 			end = 'rejected'
 			difference = noVotes - yesVotes
 		}
@@ -240,20 +268,7 @@ client.on('message', async message => {
 				member2.removeRole(roles[YES])
 			}
 
-			const previousTurnMember = currentTurnMember(guild)
-
-			previousTurnMember.removeRole(roles[CURRENT_TURN_ROLE])
-			const previousTurnI = proposalQueue.indexOf(previousTurnMember.id)
-
-			let nextTurnI
-			if (previousTurnI === proposalQueue.length - 1) {
-				db.Misc.increment('cycles', { where: {} })
-				nextTurnI = 0
-			} else {
-				nextTurnI = previousTurnI + 1
-			}
-			const activeTurnMember = guild.members.find('id', proposalQueue[nextTurnI])
-			activeTurnMember.addRole(roles[CURRENT_TURN_ROLE])
+			const previousTurnMember = initiateNextTurn(guild, roles)
 
 			const messages = findChannel(guild, PROPOSAL_CHANNEL).messages.array().slice(1)
 			const title = message.shift()
@@ -268,8 +283,6 @@ Status: ${end} by ${difference} votes
 __**Proposal Text**__
 ${body}
 			`)
-			cleanChannel(guild, PROPOSAL_CHANNEL)
-			sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently <@${activeTurnMember.id}>'s turn.`)
 		} else {
 			member.addRole(roles[args[0]])
 			// channel.send(`You have voted ${args[0]}`)
@@ -370,27 +383,36 @@ ${proposalQueue
 	}
 
 	else if (command === 'poll-create') {
-		if (args[0] && args[1] && args[2]) {
+		args[1] = args[1].toLowerCase() === 'true'
+
+		if (args[0] && args[1] && args[2] && (args[1] || args[3])) {
 			if (await db.Poll.count({ where: { title: args[0] } })) {
 				channel.send('Name taken!')
 				return
 			}
-			db.Poll.create({ author: member.id, title: args[0], description: args[1] })
+			db.Poll.create({ author: member.id, title: args[0], isYesNo: args[1], description: args[2], channel: channel.id })
 
-			const options = args.slice(2)
-			if ((new Set(options)).size !== options.length) {
-				channel.send('No duplicated options allowed.')
-				return
+			let options
+			if (args[1]) {
+				options = ['yes', 'no']
+			} else {
+				options = args.slice(3)
+				if ((new Set(options)).size !== options.length) {
+					channel.send('No duplicated options allowed.')
+					return
+				}
 			}
 
 			for (let option of options) {
 				db.PollOption.create({ title: option, poll: args[0] }).catch(error => console.error(error))
 			}
 
-			channel.send(`Success! You can now vote with \`${PRODUCTION_PREFIX}poll vote ${args[0]} [option]\`.`)
+			channel.send(`Success! You can now vote with \`${PRODUCTION_PREFIX}poll ${args[0]} vote [option]\`.`)
 		} else if (!args[0]) {
 			channel.send('You must enter a title.')
 		} else if (!args[1]) {
+			channel.send('You must enter the poll type.')
+		} else if (!args[2]) {
 			channel.send('You must enter a description.')
 		} else {
 			channel.send('You must enter at least one option.')
@@ -409,19 +431,38 @@ ${proposalQueue
 	}
 
 	else if (command === 'poll') {
-		if (await db.Poll.count({
+		const poll = await db.Poll.findOne({
 			where: {
 				title: args[0]
 			}
-		})) {
+		})
 
+		if (poll) {
 			if (args[1] === 'vote') {
 				const pollOption = await db.PollOption.find({
 					where: { poll: args[0], title: args[2] }
 				})
+
 				if (pollOption) {
-					db.PollVote.destroy({ where: { poll: args[0], author: member.id } })
-					db.PollVote.create({ author: member.id, pollOption: pollOption.title, poll: args[0] }).catch(err => console.error(err))
+					await db.PollVote.destroy({ where: { poll: args[0], author: member.id } })
+					await db.PollVote.create({ author: member.id, pollOption: pollOption.title, poll: args[0] }).catch(err => console.error(err))
+
+					if (poll.isYesNo) {
+						const votes = await db.PollVote.findAll({ where: { poll: args[0] } })
+						const count = votes.reduce((cum, value) => {
+							if (!(value.pollOption in cum)) cum[value.pollOption] = 0
+							else cum[value.pollOption] += 1
+							return cum
+						}, {})
+
+						if (count.yes >= membersNeeded(true)) {
+							guild.channels.find('id', poll.channel).send('The vote has finished with an affirmative outcome! :white_check_mark:')
+							deletePoll(args[0])
+						} else if (count.no >= membersNeeded(false)) {
+							guild.channels.find('id', poll.channel).send('The vote has finished with a negative outcome. :x:')
+							deletePoll(args[0])
+						}
+					}
 
 				} else {
 					channel.send('That option does not exist. You can choose from: ' +
@@ -451,9 +492,7 @@ ${proposalQueue
 	}
 
 	else if (command === 'poll-delete') {
-		db.Poll.destroy({ where: { title: args[0] } })
-		db.PollOption.destroy({ where: { poll: args[0] } })
-		db.PollVote.destroy({ where: { poll: args[0] } })
+		deletePoll(args[0])
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'green') {
@@ -472,10 +511,14 @@ ${proposalQueue
 		channel.bulkDelete(parseInt(args[0]) + 1)
 	}
 
-	else if (process.env.NODE_ENV !== 'production' && command === 'set-role') {
+	else if (process.env.NODE_ENV !== 'production' && command === 'set-turn') {
 		const turnMember = currentTurnMember(guild)
-		turnMember.removeRole(roles[CURRENT_TURN_ROLE])
+		await turnMember.removeRole(roles[CURRENT_TURN_ROLE])
 		guild.members.find('displayName', args[0]).addRole(roles[CURRENT_TURN_ROLE])
+	}
+
+	else if (process.env.NODE_ENV !== 'production' && command === 'force-next-turn') {
+		initiateNextTurn(guild, roles)
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'reset-check-in') {
