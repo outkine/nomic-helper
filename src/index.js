@@ -330,7 +330,7 @@ needed to fail: **${membersNeeded(false) - noVotes}**`)
 
 \`random [low bound] [high bound]\`   - generate a number (note that the high bound is not included)
 
-\`poll-create [title] [description] [option1] [option2] [etc]\`   - create a new poll (duh)
+\`poll-create [title] [true/false] [description] [option1] [option2] [etc]\`   - create a new poll. The true/false refers to whether or not the poll should be a yes/no poll - if true then the choices are automatically created and a resolution automatically announced upon a consensus
 \`poll-list\`   - list all current polls
 \`poll [poll name] vote [option1/option2/etc]\`   - vote for an option
 \`poll [poll name] unvote\`   - cancel your vote
