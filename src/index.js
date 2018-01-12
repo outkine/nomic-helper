@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import Sequelize from 'sequelize'
 import schedule from 'node-schedule'
+import createModels from './models.js'
 
 function loadJson (filePath) {
 	return JSON.parse(fs.readFileSync(filePath, 'utf8'))
@@ -11,12 +12,6 @@ function loadJson (filePath) {
 
 function fixPath (filePath) {
 	return path.resolve(__dirname, filePath)
-}
-
-function writeJson (filePath, data) {
-	fs.writeFile(path.resolve(__dirname, filePath), JSON.stringify(data), 'utf8', err => {
-		console.error(err)
-	})
 }
 
 let CONFIG_PATH, DB_PATH
@@ -31,7 +26,6 @@ CONFIG_PATH = fixPath(CONFIG_PATH)
 DB_PATH = fixPath(DB_PATH)
 const CONFIG = loadJson(CONFIG_PATH)
 
-const BOT_NUMBER = 2
 const PRODUCTION_PREFIX = '$'
 const GUILD = 'Northside Nomic'
 
@@ -72,8 +66,8 @@ function totalMembers () {
 	return proposalQueue.length
 }
 
-function membersNeeded () {
-	return Math.round(totalMembers() / 2)
+function membersNeeded (outcome) {
+	return Math.floor(totalMembers() / 2) + (outcome ? 0 : 1)
 }
 
 function currentGuild (client) {
@@ -93,10 +87,10 @@ function calculateProposalQueue (client) {
 }
 
 var initializeMemberTable = async (client) => {
-	for (let member of allMembers(client).array()) {
-		await Member.findOrCreate({
+	for (let [id] of allMembers(client)) {
+		await db.Member.findOrCreate({
 			where: {
-				id: member.id
+				id: id
 			},
 			defaults: {
 				daysInactive: 0,
@@ -109,8 +103,8 @@ function currentTurnMember (guild) {
 	return guild.members.filterArray(member => memberRole(member, CURRENT_TURN_ROLE))[0]
 }
 
-function sqlToDiscordMember (member) {
-	return currentGuild(client).members.find('id', member.get('id'))
+function idToDiscordMember (id) {
+	return currentGuild(client).members.find('id', id)
 }
 
 const client = new discord.Client()
@@ -121,36 +115,13 @@ const sequelize = new Sequelize('awesome-db', null, null, {
 	storage: DB_PATH,
 })
 
-const Member = sequelize.define('Member', {
-	id: {
-		type: Sequelize.TEXT,
-		primaryKey: true,
-		allowNull: false,
-	},
-	daysInactive: {
-		type: Sequelize.INTEGER,
-		allowNull: false,
-	},
-
-}, {
-	timestamps: false,
-})
-
-const Misc = sequelize.define('Misc', {
-	cycles: {
-		type: Sequelize.INTEGER,
-		allowNull: false,
-	},
-}, {
-	timestamps: false,
-	freezeTableName: true,
-})
+const db = createModels(sequelize)
 
 sequelize
-	.authenticate()
+	.sync({ force: false })
 	.then(async () => {
-		if (!(await Misc.count())) {
-			Misc.create({ cycles: 0 }).catch(err => console.error(err))
+		if (!(await db.Misc.count())) {
+			db.Misc.create({ cycles: 0 }).catch(err => console.error(err))
 		}
 	})
 	.catch(err => {
@@ -159,12 +130,12 @@ sequelize
 
 var addMember = async (member) => {
 	proposalQueue.push(member.id)
-	Member.create({ daysInactive: 0, id: member.id })
+	return db.Member.create({ daysInactive: 0, id: member.id })
 }
 
 var removeMember = async (member) => {
 	proposalQueue = proposalQueue.filter(member2 => member2.id !== member.id)
-	Member.destroy({
+	return db.Member.destroy({
 		where: {
 			id: member.id
 		}
@@ -172,20 +143,20 @@ var removeMember = async (member) => {
 }
 
 schedule.scheduleJob('0 0 * * *', async () => {
-	await Member.increment('daysInactive', { where: {} })
+	await db.Member.increment('daysInactive', { where: {} })
 
-	const members = await Member.findAll({
+	const members = await db.Member.findAll({
 		where: {
 			daysInactive: 2
 		}
 	})
 
-	Promise.all(members.map(async member => {
-		const channel = await sqlToDiscordMember(member).createDM()
-		return channel.send('Hello! This is a friendly reminder to check-in at Northside Nomic within the next 24 hours or you will be kicked.')
-	}))
+	for (let member of members) {
+		const channel = await idToDiscordMember(member.id).createDM()
+		channel.send('Hello! This is a friendly reminder to check-in at Northside Nomic within the next 24 hours or you will be kicked.')
+	}
 
-	const members2 = await Member.findAll({
+	const members2 = await db.Member.findAll({
 		where: {
 			daysInactive: {
 				[Sequelize.Op.gt]: 2
@@ -193,16 +164,16 @@ schedule.scheduleJob('0 0 * * *', async () => {
 		}
 	})
 
-	Promise.all(members2.map(async member => {
-		const member2 = sqlToDiscordMember(member)
-		await sendChannel(currentGuild(client), ANNOUNCEMENT_CHANNEL, `@${member2.displayName} has been kicked.`)
+	for (let member of members2) {
+		const member2 = idToDiscordMember(member.id)
+		await sendChannel(currentGuild(client), ANNOUNCEMENT_CHANNEL, `<@${member2.id}> has been kicked.`)
 		return member2.kick('You have failed to complete a check-in 2 consecutive times.')
-	}))
+	}
 })
 
 client.on('ready', async () => {
 	proposalQueue = calculateProposalQueue(client)
-	initializeMemberTable(client)
+	await initializeMemberTable(client)
 })
 
 client.on('message', async message => {
@@ -219,8 +190,11 @@ client.on('message', async message => {
 		return
 	}
 
-	const args = message.content.slice(CONFIG.prefix.length).trim().split(/ +/g)
+	// https://stackoverflow.com/questions/18703669/split-string-but-not-words-inside-quotation-marks
+	const args = [].concat.apply([], message.content.slice(CONFIG.prefix.length).split('"').map((v, i) => i % 2 ? v : v.split(' '))).filter(Boolean)
+	console.log(args)
 	const command = args.shift().toLowerCase()
+
 	const { member, channel, guild } = message
 	const roles = {
 		[YES]: findRole(guild, YES),
@@ -230,39 +204,38 @@ client.on('message', async message => {
 
 	if (command === 'ping') {
 		const m = await channel.send('Ping?')
-		m.edit(`Pong! Latency is ${m.createdTimestamp - message.createdTimestamp}ms. API Latency is ${Math.round(client.ping)}ms`)
+		m.edit(`Pong! Latency is ${m.createdTimestamp - message.createdTimestamp}ms. API Latency is ${Math.round(client.ping)}ms.`)
 	}
 
 	else if (command === 'vote') {
 		if (args[0] !== YES && args[0] !== NO) {
-			channel.send(`You must vote '${YES}' or '${NO}'`)
+			channel.send(`You must vote '${YES}' or '${NO}'.`)
 			return
 		}
 
 		let yesVotes = args[0] === YES ? 1 : 0
 		let noVotes = args[0] === NO ? 1 : 0
-		const memberCountHalf = membersNeeded()
 
-		for (let member2 of guild.members.array()) {
-			if (member2.id !== member.id) {
+		for (let [id, member2] of guild.members) {
+			if (id !== member.id) {
 				if (memberRole(member2, YES)) yesVotes += 1
 				else if (memberRole(member2, NO)) noVotes += 1
 			}
 		}
 
 		let end, difference
-		if (yesVotes >= memberCountHalf) {
+		if (yesVotes >= membersNeeded(true)) {
 			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been passed!')
 			end = 'passed'
 			difference = yesVotes - noVotes
-		} else if (noVotes > memberCountHalf) {
+		} else if (noVotes >= membersNeeded(false)) {
 			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been rejected!')
 			end = 'rejected'
 			difference = noVotes - yesVotes
 		}
 
 		if (end) {
-			for (let member2 of guild.members.array()) {
+			for (let [id, member2] of guild.members) {
 				member2.removeRole(roles[NO])
 				member2.removeRole(roles[YES])
 			}
@@ -274,7 +247,7 @@ client.on('message', async message => {
 
 			let nextTurnI
 			if (previousTurnI === proposalQueue.length - 1) {
-				Misc.increment('cycles', { where: {} })
+				db.Misc.increment('cycles', { where: {} })
 				nextTurnI = 0
 			} else {
 				nextTurnI = previousTurnI + 1
@@ -290,13 +263,13 @@ client.on('message', async message => {
 			`)
 			sendChannel(guild, ARCHIVE_CHANNEL, `
 **Action: ${title}**
-Sponsor: @${previousTurnMember.displayName}
+Sponsor: <@${previousTurnMember.id}>
 Status: ${end} by ${difference} votes
 __**Proposal Text**__
 ${body}
 			`)
 			cleanChannel(guild, PROPOSAL_CHANNEL)
-			sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently @${activeTurnMember.displayName}'s turn.`)
+			sendChannel(guild, PROPOSAL_CHANNEL, `Submit official proposals here. It is currently <@${activeTurnMember.id}>'s turn.`)
 		} else {
 			member.addRole(roles[args[0]])
 			// channel.send(`You have voted ${args[0]}`)
@@ -318,35 +291,47 @@ ${body}
 		let yesVotes = 0
 		let noVotes = 0
 
-		for (let member2 of guild.members.array()) {
+		for (let [id, member2] of guild.members) {
 			if (memberRole(member2, YES)) yesVotes += 1
 			else if (memberRole(member2, NO)) noVotes += 1
 		}
 		channel.send(`Here:
 total members: **${totalMembers()}**
-members needed: **${membersNeeded(guild)}**
 total for: **${yesVotes}**
 total against: **${noVotes}**
-		`)
+needed to pass: **${membersNeeded(true) - yesVotes}**
+needed to fail: **${membersNeeded(false) - noVotes}**`)
 	}
 
 	else if (command === 'help') {
 		channel.send(`Here are my commands:
-**vote [yes/no]**   - vote for a proposal
-**vote-info**   - see the current vote statistics
-**unvote**   - cancel your vote
+\`vote [yes/no]\`   - vote for a proposal
+\`vote-info\`   - see the current vote statistics
+\`unvote\`   - cancel your vote
 
-**turn-info**   - see the current turns
+\`turn-info\`   - see the current turns
 
-**ping**   - test my speed
+\`ping\`   - test my speed
 
-**check-in**   - perform your daily check-in
-		`)
+\`check-in\`   - perform your daily check-in
+
+\`random [low bound] [high bound]\`   - generate a number (note that the high bound is not included)
+
+\`poll-create [title] [description] [option1] [option2] [etc]\`   - create a new poll (duh)
+\`poll-list\`   - list all current polls
+\`poll [poll name] vote [option1/option2/etc]\`   - vote for an option
+\`poll [poll name] unvote\`   - cancel your vote
+\`poll-delete\`   - delete a poll
+
+NOTE
+Spaces seperate seperate commands unless they are surrounded by double quotes.
+\`$poll-create test "this is a test" "this is boring" "this is not boring"\`
+`)
 	}
 
 	else if (command === 'turn-info') {
 		channel.send(`Here:
-**Cycle: ${(await Misc.findOne()).get('cycles')}**
+**Cycle: ${(await db.Misc.findOne()).cycles}**
 ${proposalQueue
 	.map(id => {
 			let name = guild.members.find('id', id).displayName
@@ -361,7 +346,7 @@ ${proposalQueue
 	}
 
 	else if (command === 'check-in') {
-		await Member.update({
+		await db.Member.update({
 			daysInactive: 0
 		}, {
 			where: {
@@ -371,9 +356,115 @@ ${proposalQueue
 		channel.send('Success!')
 	}
 
+	else if (command === 'random') {
+		const low = parseInt(args[0])
+		const high = parseInt(args[1])
+		if (low < 0 || high < 0) {
+			channel.send('You cannot use negative numbers.')
+			return
+		} else if (low >= high) {
+			channel.send('The lower bound must be less than the higher bound.')
+			return
+		}
+		channel.send(Math.floor(Math.random() * (high - low) + low))
+	}
+
+	else if (command === 'poll-create') {
+		if (args[0] && args[1] && args[2]) {
+			if (await db.Poll.count({ where: { title: args[0] } })) {
+				channel.send('Name taken!')
+				return
+			}
+			db.Poll.create({ author: member.id, title: args[0], description: args[1] })
+
+			const options = args.slice(2)
+			if ((new Set(options)).size !== options.length) {
+				channel.send('No duplicated options allowed.')
+				return
+			}
+
+			for (let option of options) {
+				db.PollOption.create({ title: option, poll: args[0] }).catch(error => console.error(error))
+			}
+
+			channel.send(`Success! You can now vote with \`${PRODUCTION_PREFIX}poll vote ${args[0]} [option]\`.`)
+		} else if (!args[0]) {
+			channel.send('You must enter a title.')
+		} else if (!args[1]) {
+			channel.send('You must enter a description.')
+		} else {
+			channel.send('You must enter at least one option.')
+		}
+	}
+
+	else if (command === 'poll-list') {
+		const polls = await db.Poll.findAll()
+		if (polls.length) {
+			channel.send('Here: \n' + polls.map(poll =>
+`**${poll.title}** by @${idToDiscordMember(poll.author).displayName} - ${poll.description}`
+			).join('\n'))
+		} else {
+			channel.send('There are no active polls.')
+		}
+	}
+
+	else if (command === 'poll') {
+		if (await db.Poll.count({
+			where: {
+				title: args[0]
+			}
+		})) {
+
+			if (args[1] === 'vote') {
+				const pollOption = await db.PollOption.find({
+					where: { poll: args[0], title: args[2] }
+				})
+				if (pollOption) {
+					db.PollVote.destroy({ where: { poll: args[0], author: member.id } })
+					db.PollVote.create({ author: member.id, pollOption: pollOption.title, poll: args[0] }).catch(err => console.error(err))
+
+				} else {
+					channel.send('That option does not exist. You can choose from: ' +
+						(await db.PollOption.findAll({ where: { poll: args[0] } })).map(option => `**${option.title}**`).join(', ')
+					)
+				}
+
+			}	else if (args[1] === 'unvote') {
+				db.PollVote.destroy({ where: { poll: args[0], author: member.id } })
+
+			} else {
+				const options = await db.PollOption.findAll({ where: { poll: args[0] } })
+
+				const optionsText = await Promise.all(options.map(async option => {
+					const count = await db.PollVote.count({ where: { pollOption: option.title } })
+					return (
+`**${option.title}:** ${count} votes` + (count ? `, supported by ${
+	(await db.PollVote.findAll({ where: { poll: args[0], pollOption: option.title, } })).map(vote => '@' + idToDiscordMember(vote.author).displayName).join(', ')
+}` : ''))
+				}))
+				channel.send('Here are the options: \n' + optionsText.join('\n'))
+			}
+
+		} else {
+			channel.send(`That poll does not exist.`)
+		}
+	}
+
+	else if (command === 'poll-delete') {
+		db.Poll.destroy({ where: { title: args[0] } })
+		db.PollOption.destroy({ where: { poll: args[0] } })
+		db.PollVote.destroy({ where: { poll: args[0] } })
+	}
+
 	else if (process.env.NODE_ENV !== 'production' && command === 'green') {
 		for (let member2 of guild.members.array()) {
 			member2.addRole(roles[YES])
+		}
+	}
+
+	else if (process.env.NODE_ENV !== 'production' && command === 'red') {
+		for (let member2 of guild.members.array()) {
+			member2.addRole(roles[NO])
 		}
 	}
 
@@ -388,24 +479,25 @@ ${proposalQueue
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'reset-check-in') {
-		Member.update({ 'daysInactive': 0 }, { where : {} })
+		db.Member.update({ 'daysInactive': 0 }, { where: {} })
 	}
 
 	else {
-		channel.send('I did not understand that')
+		channel.send('I did not understand that.')
 	}
 })
 
 
 client.on('guildMemberAdd', async member => {
-	sendChannel(member.guild, INTRODUCTION_CHANNEL, `
-Welcome @${member.displayName}! Please introduce yourself in this channel. You have been placed in the proposal queue: your can view your place with \`${PRODUCTION_PREFIX}turn-info\`.
-	`)
-	addMember()
+	if (!member.user.bot) {
+		sendChannel(member.guild, INTRODUCTION_CHANNEL,
+`Welcome <@${member.id}>! Please introduce yourself in this channel. You have been placed in the proposal queue: your can view your place with \`${PRODUCTION_PREFIX}turn-info\`.`)
+		addMember(member)
+	}
 })
 
-client.on('guildMemberRemove', async () => {
-	removeMember()
+client.on('guildMemberRemove', async member => {
+	if (!member.user.bot) removeMember(member)
 })
 
 client.login(CONFIG.token)
