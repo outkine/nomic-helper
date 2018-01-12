@@ -407,7 +407,7 @@ ${proposalQueue
 				db.PollOption.create({ title: option, poll: args[0] }).catch(error => console.error(error))
 			}
 
-			channel.send(`Success! You can now vote with \`${PRODUCTION_PREFIX}poll ${args[0]} vote [option]\`.`)
+			channel.send(`Success! You can now vote with \`${PRODUCTION_PREFIX}poll "${args[0]}" vote [option]\`.`)
 		} else if (!args[0]) {
 			channel.send('You must enter a title.')
 		} else if (!args[1]) {
