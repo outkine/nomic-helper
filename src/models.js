@@ -20,6 +20,28 @@ export default function (sequelize) {
     cycles: {
       type: Sequelize.INTEGER,
       allowNull: false,
+      defaultValue: 0,
+    },
+    nextProposalDeadline: {
+      type: Sequelize.BIGINT.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    stage1: {
+      type: Sequelize.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    proposalTitle: {
+      type: Sequelize.TEXT,
+    },
+    proposalBody: {
+      type: Sequelize.TEXT,
+    },
+    mutableProposalNumber: {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
   }, {
     timestamps: false,
