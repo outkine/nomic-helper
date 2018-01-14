@@ -35,6 +35,7 @@ const ANNOUNCEMENT_CHANNEL = 'announcements'
 const ARCHIVE_CHANNEL = 'archived-proposals'
 const MUTABLE_CHANNEL = 'mutable-ruleset'
 const IMMUTABLE_CHANNEL = 'immutable-ruleset'
+const FAQ_CHANNEL = 'faq'
 
 const DEVELOPER_ROLE = 'react developer'
 const YES = 'yes'
@@ -62,7 +63,9 @@ function sendChannel (guild, name, message) {
 	return findChannel(guild, name).send(message)
 }
 
-function cleanChannel (guild, name) {
+async function cleanChannel (guild, name) {
+	await sendChannel(guild, PROPOSAL_CHANNEL, 'yes')
+	await sendChannel(guild, PROPOSAL_CHANNEL, 'yes')
 	return findChannel(guild, name).bulkDelete(100, true)
 }
 
@@ -111,24 +114,28 @@ function idToDiscordMember (id) {
 	return currentGuild(client).members.find('id', id)
 }
 
-async function initiateNextTurn (guild) {
+
+async function initiateNextTurn (guild, activeMemberId) {
 	const previousTurnMember = currentTurnMember(guild)
+	if (previousTurnMember) await previousTurnMember.removeRole(findRole(guild, CURRENT_TURN_ROLE))
 
-	await previousTurnMember.removeRole(findRole(guild, CURRENT_TURN_ROLE))
-	const previousTurnI = proposalQueue.indexOf(previousTurnMember.id)
-
-	let nextTurnI
-	if (previousTurnI === proposalQueue.length - 1) {
-		db.Misc.increment('cycles', { where: {} })
-		nextTurnI = 0
-	} else {
-		nextTurnI = previousTurnI + 1
+	if (!activeMemberId) {
+		const previousTurnI = proposalQueue.indexOf(previousTurnMember.id)
+		let nextTurnI
+		if (previousTurnI === proposalQueue.length - 1) {
+			db.Misc.increment('cycles', { where: {} })
+			nextTurnI = 0
+		} else {
+			nextTurnI = previousTurnI + 1
+		}
+		activeMemberId = proposalQueue[nextTurnI]
 	}
-	const activeTurnMember = guild.members.find('id', proposalQueue[nextTurnI])
+
+	const activeTurnMember = guild.members.find('id', activeMemberId)
 	activeTurnMember.addRole(findRole(guild, CURRENT_TURN_ROLE))
 
 	await cleanChannel(guild, PROPOSAL_CHANNEL)
-	sendChannel(guild, PROPOSAL_CHANNEL, `It is currently <@${activeTurnMember.id}>'s turn. Remember to follow the appropriate format: have 2 messages, the first being the title and the second being the body. No metadata is necessary.`)
+	sendChannel(guild, PROPOSAL_CHANNEL, `It is currently <@${activeTurnMember.id}>'s turn. Remember to use the \`proposal\` command when writing your proposal.`)
 
 	await setNextProposalDeadline()
 	setDeadline(guild)
@@ -142,7 +149,7 @@ function setNextProposalDeadline () {
 }
 
 async function setDeadline(guild) {
-	proposalDeadlineJob = await schedule.scheduleJob(parseInt((await db.Misc.findOne()).nextProposalDeadline), async () => {
+	proposalDeadlineJob = schedule.scheduleJob(parseInt((await db.Misc.findOne()).nextProposalDeadline), async () => {
 		if ((await db.Misc.findOne()).stage1) {
 			await setNextProposalDeadline()
 			setDeadline(guild)
@@ -158,6 +165,10 @@ function deletePoll (title) {
 	db.Poll.destroy({ where: { title: title } })
 	db.PollOption.destroy({ where: { poll: title } })
 	db.PollVote.destroy({ where: { poll: title } })
+}
+
+function channelId (guild, name) {
+	return guild.channels.find('name', name).id
 }
 
 const client = new discord.Client()
@@ -242,11 +253,6 @@ client.on('message', async message => {
 		return
 	}
 
-	if (!currentTurnMember(message.guild)) {
-		channel.send(`Warning! No ${CURRENT_TURN_ROLE} role is set. **This must be fixed immediately >:(**.`)
-		return
-	}
-
 	// https://stackoverflow.com/questions/18703669/split-string-but-not-words-inside-quotation-marks
 
 	const args = [].concat.apply([], message.content.slice(CONFIG.prefix.length).split('"').map((v, i) => i % 2 ? v : v.split(' '))).filter(Boolean)
@@ -258,12 +264,14 @@ client.on('message', async message => {
 	}
 	const command = args.shift().toLowerCase()
 
-	if (message.content.indexOf(CONFIG.prefix) !== 0 && command !== 'proposal') {
-		channel.send(
-			`<@${member.id}> you can only post in #${PROPOSAL_CHANNEL} with the \`${PRODUCTION_PREFIX}proposal\` command. See \`${PRODUCTION_PREFIX}help\` for more information.`
-		)
-		message.delete()
-		return
+	if (process.env.NODE_ENV === 'production') {
+		if (message.content.indexOf(CONFIG.prefix) !== 0 && command !== 'proposal') {
+			channel.send(
+				`<@${member.id}> you can only post in #${channelId(guild, PROPOSAL_CHANNEL)} with the \`proposal\` command. Type \`${PRODUCTION_PREFIX}help\` for more information.`
+			)
+			message.delete()
+			return
+		}
 	}
 
 	const roles = {
@@ -381,6 +389,8 @@ needed to fail: **${membersNeeded(false) - noVotes}**`)
 \`poll [poll name] vote [option1/option2/etc]\`   - vote for an option
 \`poll [poll name] unvote\`   - cancel your vote
 \`poll [poll name] delete\`   - delete a poll
+
+\`proposal [title/body]\`   - add a part of a proposal. This is the only thing that can be done in #${channelId(guild, PROPOSAL_CHANNEL)}.
 
 NOTE
 Spaces seperate seperate commands unless they are surrounded by double quotes.
@@ -550,7 +560,7 @@ ${proposalQueue
 
 	else if (command === 'proposal') {
 		if (channel.name !== PROPOSAL_CHANNEL) {
-			channel.send('You can only use the `proposal` command in #${PROPOSAL_CHANNEL}.')
+			channel.send(`You can only use the \`proposal\` command in <#${channelId(guild, PROPOSAL_CHANNEL)}>.`)
 			return
 		}
 		if (!args[1]) {
@@ -582,9 +592,7 @@ ${proposalQueue
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'set-turn') {
-		const turnMember = currentTurnMember(guild)
-		await turnMember.removeRole(roles[CURRENT_TURN_ROLE])
-		guild.members.find('displayName', args[0]).addRole(roles[CURRENT_TURN_ROLE])
+		initiateNextTurn(guild, guild.members.find('displayName', args[0]).id)
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'force-next-turn') {
@@ -616,7 +624,7 @@ ${proposalQueue
 client.on('guildMemberAdd', async member => {
 	if (!member.user.bot) {
 		sendChannel(member.guild, INTRODUCTION_CHANNEL,
-`Welcome <@${member.id}>! Please introduce yourself in this channel. You have been placed in the proposal queue: your can view your place with \`${PRODUCTION_PREFIX}turn-info\`. Read #faq for more information on this game`)
+`Welcome <@${member.id}>! Please introduce yourself in this channel. You have been placed in the proposal queue: your can view your place with \`${PRODUCTION_PREFIX}turn-info\`. Read <#${channelId(member.guild, FAQ_CHANNEL)}> for more information on this game.`)
 		addMember(member)
 	}
 })
