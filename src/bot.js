@@ -138,8 +138,7 @@ async function initiateNextTurn (guild, activeMemberId) {
 	sendChannel(guild, PROPOSAL_CHANNEL, `It is currently <@${activeTurnMember.id}>'s turn. Remember to use the \`proposal\` command when writing your proposal.`)
 
 	await setNextProposalDeadline()
-	setDeadline(guild)
-	db.Misc.update({ stage1: true }, { where: {} })
+	await setDeadline(guild)
 
 	return previousTurnMember
 }
@@ -150,13 +149,15 @@ function setNextProposalDeadline () {
 
 async function setDeadline(guild) {
 	proposalDeadlineJob = schedule.scheduleJob(parseInt((await db.Misc.findOne()).nextProposalDeadline), async () => {
-		if ((await db.Misc.findOne()).stage1) {
+		const misc = await db.Misc.findOne()
+		if (misc.stage1 && misc.proposalBody && misc.proposalTitle) {
 			await setNextProposalDeadline()
 			setDeadline(guild)
 			db.Misc.update({ stage1: false }, { where: {} })
 		} else {
 			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'Time has run out - the proposal is rejected. :x:')
 			initiateNextTurn(guild)
+			await db.Misc.update({ stage1: true }, { where: {} })
 		}
 	})
 }
@@ -615,7 +616,7 @@ ${proposalQueue
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'cancel-deadline') {
-		db.Misc.update({ stage1: false }, { where: {} })
+		db.Misc.update({ stage1: true }, { where: {} })
 		db.Misc.update({ nextProposalDeadline: 0 }, { where: {} })
 		proposalDeadlineJob.cancel()
 	}
@@ -642,10 +643,10 @@ client.on('guildMemberAdd', async member => {
 
 client.on('guildMemberRemove', async member => {
 	if (!member.user.bot) {
-		await removeMember(member)
 		if (currentTurnMember(member.guild).id === member.id) {
-			initiateNextTurn(member.guild)
+			await initiateNextTurn(member.guild)
 		}
+		await removeMember(member)
 		sendChannel(member.guild, ANNOUNCEMENT_CHANNEL, `<@${member.displayName} has left.`)
 	}
 })

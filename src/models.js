@@ -30,7 +30,7 @@ export default function (sequelize) {
     stage1: {
       type: Sequelize.BOOLEAN,
       allowNull: false,
-      defaultValue: false,
+      defaultValue: true,
     },
     proposalTitle: {
       type: Sequelize.TEXT,
