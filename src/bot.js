@@ -230,7 +230,7 @@ schedule.scheduleJob('0 0 * * *', async () => {
 
 	for (let member of members2) {
 		const member2 = idToDiscordMember(member.id)
-		await sendChannel(currentGuild(client), ANNOUNCEMENT_CHANNEL, `<@${member2.id}> has been kicked.`)
+		// await sendChannel(currentGuild(client), ANNOUNCEMENT_CHANNEL, `<@${member2.id}> has been kicked.`)
 		return member2.kick('You have failed to complete a check-in 2 consecutive times.')
 	}
 })
@@ -390,7 +390,7 @@ needed to fail: **${membersNeeded(false) - noVotes}**`)
 \`poll [poll name] unvote\`   - cancel your vote
 \`poll [poll name] delete\`   - delete a poll
 
-\`proposal [title/body]\`   - add a part of a proposal. This is the only thing that can be done in #${channelId(guild, PROPOSAL_CHANNEL)}.
+\`proposal [title/body] [value]\`   - add a part of a proposal. This is the only thing that can be done in #${channelId(guild, PROPOSAL_CHANNEL)}.
 
 NOTE
 Spaces seperate seperate commands unless they are surrounded by double quotes.
@@ -570,6 +570,9 @@ ${proposalQueue
 
 		if (args[0] === 'title' || args[0] === 'body') {
 			db.Misc.update({ ['proposal' + capitalize(args[0])]: args[1] }, { where: {} })
+			if (args[1].split(' ').length === 1) {
+				channel.send('Warning: you have entered a value with only one word. Please remember to use quotes.')
+			}
 		} else {
 			channel.send('That is not a valid option. You can only set the `title` or `body`.')
 		}
@@ -630,7 +633,13 @@ client.on('guildMemberAdd', async member => {
 })
 
 client.on('guildMemberRemove', async member => {
-	if (!member.user.bot) removeMember(member)
+	if (!member.user.bot) {
+		await removeMember(member)
+		if (currentTurnMember(member.guild).id === member.id) {
+			initiateNextTurn(member.guild)
+		}
+		sendChannel(member.guild, ANNOUNCEMENT_CHANNEL, `<@${member.displayName} has left.`)
+	}
 })
 
 client.login(CONFIG.token)
