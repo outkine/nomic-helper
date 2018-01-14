@@ -264,6 +264,10 @@ client.on('message', async message => {
 	}
 	const command = args.shift().toLowerCase()
 
+	if (!currentTurnMember(guild)) {
+		message.channel.send(`Warning! No ${CURRENT_TURN_ROLE} role is set.`)
+	}
+
 	if (process.env.NODE_ENV === 'production') {
 		if (message.content.indexOf(CONFIG.prefix) !== 0 && command !== 'proposal') {
 			channel.send(
