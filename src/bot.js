@@ -408,8 +408,12 @@ Spaces seperate seperate commands unless they are surrounded by double quotes.
 ${proposalQueue
 	.map(id => {
 			let name = guild.members.find('id', id).displayName
-			if (id === currentTurnMember(guild).id) {
-				name = `**${name} <- current turn**`
+			try {
+				if (id === currentTurnMember(guild).id) {
+					name = `**${name} <- current turn**`
+				}
+			} catch (err) {
+				console.log(err)
 			}
 			return name
 		})
