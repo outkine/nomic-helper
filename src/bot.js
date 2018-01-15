@@ -199,7 +199,7 @@ async function addMember (member) {
 }
 
 async function removeMember (member) {
-	proposalQueue = proposalQueue.filter(member2 => member2.id !== member.id)
+	proposalQueue = proposalQueue.filter(id => id !== member.id)
 	return db.Member.destroy({
 		where: {
 			id: member.id
@@ -628,6 +628,7 @@ ${proposalQueue
 	}
 
 	else {
+		console.log(proposalQueue, proposalQueue.length)
 		channel.send('I did not understand that.')
 	}
 })
@@ -647,7 +648,7 @@ client.on('guildMemberRemove', async member => {
 			await initiateNextTurn(member.guild)
 		}
 		await removeMember(member)
-		sendChannel(member.guild, ANNOUNCEMENT_CHANNEL, `<@${member.displayName} has left.`)
+		sendChannel(member.guild, ANNOUNCEMENT_CHANNEL, `<@${member.id}> has left.`)
 	}
 })
 
