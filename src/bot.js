@@ -149,16 +149,8 @@ function setNextProposalDeadline () {
 
 async function setDeadline(guild) {
 	proposalDeadlineJob = schedule.scheduleJob(parseInt((await db.Misc.findOne()).nextProposalDeadline), async () => {
-		const misc = await db.Misc.findOne()
-		if (misc.stage1 && misc.proposalBody && misc.proposalTitle) {
-			await setNextProposalDeadline()
-			setDeadline(guild)
-			db.Misc.update({ stage1: false }, { where: {} })
-		} else {
-			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'Time has run out - the proposal is rejected. :x:')
-			initiateNextTurn(guild)
-			await db.Misc.update({ stage1: true }, { where: {} })
-		}
+		sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'Time has run out - the proposal is rejected. :x:')
+		initiateNextTurn(guild)
 	})
 }
 
@@ -616,7 +608,6 @@ ${proposalQueue
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'cancel-deadline') {
-		db.Misc.update({ stage1: true }, { where: {} })
 		db.Misc.update({ nextProposalDeadline: 0 }, { where: {} })
 		proposalDeadlineJob.cancel()
 	}
@@ -624,7 +615,6 @@ ${proposalQueue
 	else if (process.env.NODE_ENV !== 'production' && command === 'set-deadline') {
 		await setNextProposalDeadline()
 		setDeadline(guild)
-		db.Misc.update({ stage1: true }, { where: {} })
 	}
 
 	else {
