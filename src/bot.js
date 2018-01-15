@@ -212,7 +212,7 @@ schedule.scheduleJob('0 0 * * *', async () => {
 
 	const members = await db.Member.findAll({
 		where: {
-			daysInactive: 2
+			daysInactive: 1
 		}
 	})
 
@@ -224,7 +224,7 @@ schedule.scheduleJob('0 0 * * *', async () => {
 	const members2 = await db.Member.findAll({
 		where: {
 			daysInactive: {
-				[Sequelize.Op.gt]: 2
+				[Sequelize.Op.gt]: 1
 			}
 		}
 	})
