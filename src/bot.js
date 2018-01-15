@@ -228,6 +228,10 @@ schedule.scheduleJob('0 0 * * *', async () => {
 	}
 })
 
+function parseInput (input) {
+	return [].concat.apply([], input.slice(CONFIG.prefix.length).split('"').map((v, i) => i % 2 ? v : v.split(' '))).filter(Boolean)
+}
+
 client.on('ready', async () => {
 	proposalQueue = calculateProposalQueue(client)
 	initializeMemberTable(client)
@@ -248,7 +252,7 @@ client.on('message', async message => {
 
 	// https://stackoverflow.com/questions/18703669/split-string-but-not-words-inside-quotation-marks
 
-	const args = [].concat.apply([], message.content.slice(CONFIG.prefix.length).split('"').map((v, i) => i % 2 ? v : v.split(' '))).filter(Boolean)
+	const args = parseInput(message.content)
 	console.log(args)
 
 	if (!args.length) {
@@ -320,19 +324,28 @@ client.on('message', async message => {
 			const previousTurnMember = initiateNextTurn(guild)
 
 			const misc = await db.Misc.findOne()
+
+			const info = { title: '', body: '' }
+			for (let [id, message] of findChannel(guild, PROPOSAL_CHANNEL).messages) {
+				if (!message.author.bot) {
+					const args = parseInput(message.content)
+					info[args[1]] += args[2]
+				}
+			}
+
 			if (end === 'passed') {
 				sendChannel(guild, MUTABLE_CHANNEL,
-`**${misc.proposalTitle} (rule ${misc.mutableProposalNumber}).** ${misc.proposalBody}`)
+`**${info.title} (rule ${misc.mutableProposalNumber}).** ${info.body}`)
 			}
 			sendChannel(guild, ARCHIVE_CHANNEL, `
-**Action: ${misc.proposalTitle}**
+**Action: ${info.title}**
 Sponsor: <@${previousTurnMember.id}>
 Status: ${end} by ${difference} votes
 __**Proposal Text**__
-${misc.proposalBody}
+${info.body}
 			`)
 
-			db.Misc.update({ proposalTitle: '', proposalBody: '', mutableProposalNumber: misc.mutableProposalNumber + 1 }, { where: {} })
+			db.Misc.update({ mutableProposalNumber: misc.mutableProposalNumber + 1 }, { where: {} })
 
 		} else {
 			member.addRole(roles[args[0]])
@@ -570,9 +583,8 @@ ${proposalQueue
 		}
 
 		if (args[0] === 'title' || args[0] === 'body') {
-			db.Misc.update({ ['proposal' + capitalize(args[0])]: args[1] }, { where: {} })
 			if (args[1].split(' ').length === 1) {
-				channel.send('Warning: you have entered a value with only one word. Please remember to use quotes.')
+				channel.send('**This is just a warning:** you have entered a value with only one word. Please remember to use quotes.')
 			}
 		} else {
 			channel.send('That is not a valid option. You can only set the `title` or `body`.')
