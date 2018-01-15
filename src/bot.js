@@ -268,7 +268,7 @@ client.on('message', async message => {
 	if (process.env.NODE_ENV === 'production') {
 		if (message.content.indexOf(CONFIG.prefix) !== 0 && command !== 'proposal') {
 			channel.send(
-				`<@${member.id}> you can only post in #${channelId(guild, PROPOSAL_CHANNEL)} with the \`proposal\` command. Type \`${PRODUCTION_PREFIX}help\` for more information.`
+				`<@${member.id}> you can only post in <#${channelId(guild, PROPOSAL_CHANNEL)}> with the \`proposal\` command. Type \`${PRODUCTION_PREFIX}help\` for more information.`
 			)
 			message.delete()
 			return
