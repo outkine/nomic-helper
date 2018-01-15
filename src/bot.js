@@ -340,7 +340,7 @@ __**Proposal Text**__
 ${misc.proposalBody}
 			`)
 
-			db.Misc.update({ proposalTitle: '', proposalBody: '', mutableProposalNumber: misc.mutableProposalNumber + 1 })
+			db.Misc.update({ proposalTitle: '', proposalBody: '', mutableProposalNumber: misc.mutableProposalNumber + 1 }, { where: {} })
 
 		} else {
 			member.addRole(roles[args[0]])
