@@ -208,7 +208,7 @@ async function removeMember (member) {
 }
 
 schedule.scheduleJob('0 0 * * *', async () => {
-	await db.Member.increment('daysInactive', { where: {} })
+	// await db.Member.increment('daysInactive', { where: {} })
 
 	const members = await db.Member.findAll({
 		where: {
@@ -218,7 +218,7 @@ schedule.scheduleJob('0 0 * * *', async () => {
 
 	for (let member of members) {
 		const channel = await idToDiscordMember(member.id).createDM()
-		channel.send('Hello! This is a friendly reminder to check-in at Northside Nomic within the next 24 hours or you will be kicked.')
+		await channel.send('Hello! This is a friendly reminder to check-in at Northside Nomic within the next 24 hours or you will be kicked.')
 	}
 
 	const members2 = await db.Member.findAll({
@@ -232,7 +232,7 @@ schedule.scheduleJob('0 0 * * *', async () => {
 	for (let member of members2) {
 		const member2 = idToDiscordMember(member.id)
 		// await sendChannel(currentGuild(client), ANNOUNCEMENT_CHANNEL, `<@${member2.id}> has been kicked.`)
-		return member2.kick('You have failed to complete a check-in 2 consecutive times.')
+		await member2.kick('You have failed to complete a check-in 2 consecutive times.')
 	}
 })
 
@@ -628,7 +628,6 @@ ${proposalQueue
 	}
 
 	else {
-		console.log(proposalQueue, proposalQueue.length)
 		channel.send('I did not understand that.')
 	}
 })
