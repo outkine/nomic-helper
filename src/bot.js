@@ -64,8 +64,8 @@ function sendChannel (guild, name, message) {
 }
 
 async function cleanChannel (guild, name) {
-	await sendChannel(guild, PROPOSAL_CHANNEL, 'yes')
-	await sendChannel(guild, PROPOSAL_CHANNEL, 'yes')
+	await sendChannel(guild, PROPOSAL_CHANNEL, 'slurp')
+	await sendChannel(guild, PROPOSAL_CHANNEL, 'slurp')
 	return findChannel(guild, name).bulkDelete(100, true)
 }
 
@@ -123,7 +123,7 @@ async function initiateNextTurn (guild, activeMemberId) {
 		const previousTurnI = proposalQueue.indexOf(previousTurnMember.id)
 		let nextTurnI
 		if (previousTurnI === proposalQueue.length - 1) {
-			db.Misc.increment('cycles', { where: {} })
+			await db.Misc.increment('cycles', { where: {} })
 			nextTurnI = 0
 		} else {
 			nextTurnI = previousTurnI + 1
@@ -132,10 +132,10 @@ async function initiateNextTurn (guild, activeMemberId) {
 	}
 
 	const activeTurnMember = guild.members.find('id', activeMemberId)
-	activeTurnMember.addRole(findRole(guild, CURRENT_TURN_ROLE))
+	await activeTurnMember.addRole(findRole(guild, CURRENT_TURN_ROLE))
 
 	await cleanChannel(guild, PROPOSAL_CHANNEL)
-	sendChannel(guild, PROPOSAL_CHANNEL, `It is currently <@${activeTurnMember.id}>'s turn. Remember to use the \`proposal\` command when writing your proposal.`)
+	await sendChannel(guild, PROPOSAL_CHANNEL, `It is currently <@${activeTurnMember.id}>'s turn. Remember to use the \`proposal\` command when writing your proposal.`)
 
 	await setNextProposalDeadline()
 	await setDeadline(guild)
@@ -304,49 +304,59 @@ client.on('message', async message => {
 
 		let end, difference
 		if (yesVotes >= membersNeeded(true)) {
-			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been passed! :white_check_mark:')
+			await sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been passed! :white_check_mark:')
 			end = 'passed'
 			difference = yesVotes - noVotes
 		} else if (noVotes >= membersNeeded(false)) {
-			sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been rejected! :x:')
+			await sendChannel(guild, ANNOUNCEMENT_CHANNEL, 'The proposal has been rejected! :x:')
 			end = 'rejected'
 			difference = noVotes - yesVotes
 		}
+		console.log(end)
 
 		if (end) {
-			for (let [id, member2] of guild.members) {
-				member2.removeRole(roles[NO])
-				member2.removeRole(roles[YES])
-			}
+			if (proposalDeadlineJob) proposalDeadlineJob.cancel()
 
-			proposalDeadlineJob.cancel()
-
-			const previousTurnMember = initiateNextTurn(guild)
+			const previousTurnMember = await initiateNextTurn(guild)
 
 			const misc = await db.Misc.findOne()
 
-			const info = { title: '', body: '' }
+			const info = { title: [], body: [] }
 			for (let [id, message] of findChannel(guild, PROPOSAL_CHANNEL).messages) {
 				if (!message.author.bot) {
 					const args = parseInput(message.content)
-					info[args[1]] += args[2]
+					if (args[1] in info) {
+						info[args[1]].push(args[2])
+					}
 				}
 			}
 
+			console.log(end, info)
 			if (end === 'passed') {
-				sendChannel(guild, MUTABLE_CHANNEL,
-`**${info.title} (rule ${misc.mutableProposalNumber}).** ${info.body}`)
+				await sendChannel(guild, MUTABLE_CHANNEL,
+`**${info.title} (rule ${misc.mutableProposalNumber}).**`)
+				for (let message of info.body) {
+					console.log(message)
+					await sendChannel(guild, MUTABLE_CHANNEL, message)
+				}
 			}
-			sendChannel(guild, ARCHIVE_CHANNEL, `
-**Action: ${info.title}**
+
+			await sendChannel(guild, ARCHIVE_CHANNEL,
+`**Action: ${info.title}**
 Sponsor: <@${previousTurnMember.id}>
 Status: ${end} by ${difference} votes
-__**Proposal Text**__
-${info.body}
-			`)
+__**Proposal Text**__`)
+			for (let message of info.body) {
+				await sendChannel(guild, ARCHIVE_CHANNEL, message)
+			}
 
-			db.Misc.update({ mutableProposalNumber: misc.mutableProposalNumber + 1 }, { where: {} })
+			await db.Misc.update({ mutableProposalNumber: misc.mutableProposalNumber + 1 }, { where: {} })
 
+			for (let [id, member2] of guild.members) {
+				console.log(id)
+				if (memberRole(member2, NO)) await member2.removeRole(roles[NO])
+				else if (memberRole(member2, YES)) await member2.removeRole(roles[YES])
+			}
 		} else {
 			member.addRole(roles[args[0]])
 			// channel.send(`You have voted ${args[0]}`)
@@ -593,13 +603,13 @@ ${proposalQueue
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'green') {
 		for (let member2 of guild.members.array()) {
-			member2.addRole(roles[YES])
+			await member2.addRole(roles[YES])
 		}
 	}
 
 	else if (process.env.NODE_ENV !== 'production' && command === 'red') {
 		for (let member2 of guild.members.array()) {
-			member2.addRole(roles[NO])
+			await member2.addRole(roles[NO])
 		}
 	}
 
